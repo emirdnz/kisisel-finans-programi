@@ -1,0 +1,2078 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finans Defterim</title>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Finans Defterim — dönem bazlı para defteri
+
+   Görünüm: koyu palet ve sistem yazı tipi — uzun süre bakılan bir ekran
+   için göz yormayan, sade bir düzen.
+
+   Bu sürümün omurgası iki kullanıcı geri bildirimi:
+   1. "Geniş severim, geniş geniş rahat rahat olsun."  → geniş yerleşim,
+      sekme yok; her şey tek ekranda, iki sütunda.
+   2. "CRUD işlemleri kötü olmuş."  → düzenleme SATIR İÇİNDE. Kayıt
+      silinip forma taşınmıyor; Kaydet'e basılmadan hiçbir şey değişmiyor.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root{
+  --zemin:#0f1115; --kart:#171a21; --cizgi:#252a33; --yazi:#e6e8ec;
+  --soluk:#8b93a1; --vurgu:#4a9eff; --iyi:#3ecf8e; --kotu:#ff6b6b; --uyari:#ffb454;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:18px;background:var(--zemin);color:var(--yazi);
+     font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.sarmal{max-width:1560px;margin:0 auto}
+
+h1{font-size:22px;margin:0}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--soluk);
+   font-weight:600;margin:0 0 8px}
+.alt{color:var(--soluk);font-size:13px}
+.para{font-variant-numeric:tabular-nums}
+.iyi{color:var(--iyi)} .kotu{color:var(--kotu)} .uyari{color:var(--uyari)}
+
+/* ── Üst çubuk ─────────────────────────────────────────────── */
+.tepe{display:flex;align-items:center;justify-content:space-between;gap:16px;
+      flex-wrap:wrap;margin-bottom:16px}
+.donem{display:flex;align-items:center;gap:6px}
+.donem .ad{min-width:210px;text-align:center;font-size:17px;font-weight:600}
+.ok{background:var(--kart);border:1px solid var(--cizgi);color:var(--yazi);
+    width:38px;height:38px;border-radius:9px;font-size:17px;cursor:pointer}
+.ok:hover{border-color:var(--vurgu);color:var(--vurgu)}
+
+/* ── Özet ──────────────────────────────────────────────────── */
+.ozet{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+      gap:12px;margin-bottom:18px}
+.oz{background:var(--kart);border:1px solid var(--cizgi);border-radius:12px;padding:16px 18px}
+.oz .baslik{color:var(--soluk);font-size:12px;margin-bottom:6px}
+.oz .deger{font-size:25px;font-weight:700}
+.oz .not{color:var(--soluk);font-size:12px;margin-top:5px}
+.oz.ana{border-color:var(--vurgu);box-shadow:0 0 0 1px rgba(74,158,255,.25) inset}
+.oz.tikla{cursor:pointer;transition:border-color .12s}
+.oz.tikla:hover{border-color:var(--vurgu)}
+.oz.tikla::after{content:"detay ›";position:absolute;right:16px;top:16px;
+  font-size:11px;color:var(--soluk);opacity:0;transition:opacity .12s}
+.oz.tikla:hover::after{opacity:1}
+.oz{position:relative}
+.oz.acik{border-color:var(--vurgu)}
+
+/* ── İki sütun ─────────────────────────────────────────────── */
+.govde{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(340px,1fr);gap:16px;align-items:start}
+.sutun{display:flex;flex-direction:column;gap:16px}
+.blok{background:var(--kart);border:1px solid var(--cizgi);border-radius:12px;padding:16px 18px}
+/* Açılır-kapanır bölüm: kapalıyken başlık dışındaki her şey gizlenir.
+   Kullanıcı isteği: "göz rahatlığı için." */
+.blok > h2{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.blok > h2::before{content:"▾";font-size:11px;color:var(--soluk);transition:transform .15s;display:inline-block}
+.blok.kapali > h2::before{transform:rotate(-90deg)}
+.blok.kapali > h2{margin-bottom:0}
+.blok.kapali > *:not(h2){display:none}
+.blok.filtreli{border-color:var(--uyari)}
+.blok > h2:hover{color:var(--yazi)}
+.blok > h2 .sayac{margin-left:auto;font-weight:500;color:var(--soluk);
+  text-transform:none;letter-spacing:0;font-size:12px}
+
+/* ── Tablo ─────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse}
+th{color:var(--soluk);font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+   text-align:left;padding:0 10px 8px;font-weight:600;white-space:nowrap}
+td{padding:9px 10px;border-top:1px solid var(--cizgi);vertical-align:middle}
+th.sag,td.sag{text-align:right}
+tr:hover td{background:rgba(255,255,255,.025)}
+tr.plan td{background:rgba(255,180,84,.05)}
+.bos{color:var(--soluk);padding:22px 10px;text-align:center}
+.rozet{font-size:11px;padding:2px 8px;border-radius:20px;background:#2a2f3a;color:var(--soluk);white-space:nowrap}
+.rozet.bekliyor{background:rgba(255,180,84,.16);color:var(--uyari)}
+
+.mini{background:none;border:1px solid transparent;color:var(--soluk);
+      width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px}
+.mini:hover{border-color:var(--cizgi);color:var(--vurgu)}
+.mini.sil:hover{color:var(--kotu)}
+.mini.tamam:hover{color:var(--iyi)}
+td.islem{white-space:nowrap;text-align:right;width:1%}
+
+/* ── Formlar ───────────────────────────────────────────────── */
+input,select,textarea{
+  background:#0d1015;color:var(--yazi);border:1px solid var(--cizgi);border-radius:9px;
+  padding:9px 11px;font:inherit;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--vurgu)}
+input::placeholder,textarea::placeholder{color:#5c6474}
+input.tutar{text-align:right;font-variant-numeric:tabular-nums}
+textarea{min-height:120px;resize:vertical}
+
+.ekle{display:grid;gap:10px;grid-template-columns:150px 1fr 190px 150px auto;
+      align-items:end;margin-top:14px;padding-top:14px;border-top:1px dashed var(--cizgi)}
+.ekle label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--soluk)}
+.ekle .tam{grid-column:1/-1}
+.dugme{background:var(--vurgu);color:#08111c;border:none;border-radius:9px;
+       padding:9px 20px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.dugme:hover{filter:brightness(1.08)}
+.dugme.sade{background:transparent;color:var(--yazi);border:1px solid var(--cizgi)}
+.dugme.sade:hover{border-color:var(--vurgu);color:var(--vurgu)}
+.kucuk{padding:7px 14px;font-size:13px}
+/* `.ekle label` sütun yönlü; onay kutusu ondan miras alınca ortalanıyordu. */
+.onay{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;
+      gap:9px;font-size:13px;color:var(--soluk);white-space:nowrap}
+.onay input{flex:0 0 auto}
+.onay input{width:17px;height:17px;accent-color:var(--vurgu)}
+
+/* Satır içi düzenleme */
+tr.duzenleniyor td{background:#141a24;border-top:1px solid var(--vurgu)}
+tr.duzenleniyor input,tr.duzenleniyor select{padding:7px 9px}
+
+/* ── Rapor ─────────────────────────────────────────────────── */
+pre.rapor{background:#0d1015;border:1px solid var(--cizgi);border-radius:10px;padding:14px;
+  margin:12px 0 0;font:13px/1.65 ui-monospace,Menlo,Consolas,monospace;
+  white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto}
+.satirdugme{display:flex;gap:8px;flex-wrap:wrap}
+.gizli{display:none !important}
+.kisi-sat{display:flex;justify-content:space-between;gap:12px;padding:9px 0;
+          border-top:1px solid var(--cizgi)}
+.kisi-sat:first-child{border-top:none}
+.kisi-sat .ad{font-weight:600}
+
+@media (max-width:1100px){ .govde{grid-template-columns:1fr} }
+@media (max-width:760px){
+  body{padding:12px}
+  .ekle{grid-template-columns:1fr 1fr}
+  .ekle .tam,.ekle .yarim{grid-column:1/-1}
+  .donem .ad{min-width:150px;font-size:15px}
+  th.gizle,td.gizle{display:none}
+}
+</style>
+
+<div class="sarmal">
+
+  <div id="demo-bant" class="gizli" style="background:rgba(74,158,255,.12);
+       border:1px solid rgba(74,158,255,.45);border-radius:10px;padding:12px 14px;
+       margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="flex:1;min-width:200px"><strong>Demo · örnek veri.</strong>
+      Kişiler ve tutarlar uydurmadır. Ekleyip silebilirsin; değişiklikler yalnız bu tarayıcıda,
+      demoya ayrılmış alanda durur.</span>
+    <button class="dugme sade kucuk" id="b-demo-sifirla">Demoyu baştan kur</button>
+  </div>
+
+  <div id="yedek-uyari" class="gizli" style="background:rgba(255,180,84,.12);
+       border:1px solid rgba(255,180,84,.4);border-radius:10px;padding:12px 14px;
+       margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="flex:1;min-width:200px" id="yedek-uyari-metin"></span>
+    <button class="dugme kucuk" id="b-yedek-hizli">Yedek indir</button>
+    <button class="dugme sade kucuk" id="b-yedek-sonra">Sonra</button>
+  </div>
+
+  <div class="tepe">
+    <div>
+      <h1>Finans Defterim</h1>
+      <div class="alt" id="ust-alt">—</div>
+    </div>
+    <div class="donem">
+      <button class="ok" id="b-onceki" title="Önceki ay">‹</button>
+      <div class="ad" id="donem-ad">—</div>
+      <button class="ok" id="b-sonraki" title="Sonraki ay">›</button>
+      <button class="dugme sade kucuk gizli" id="b-bugun">Bu ay</button>
+    </div>
+  </div>
+
+  <div class="ozet">
+    <div class="oz ana tikla" data-detay="maas">
+      <div class="baslik" id="oz1-baslik">Bu aydan kalan</div>
+      <div class="deger para" id="oz1">—</div>
+      <div class="not" id="oz1-not"></div>
+    </div>
+    <div class="oz tikla" data-detay="girdi">
+      <div class="baslik">Bu ay girdi</div>
+      <div class="deger para iyi" id="oz2">—</div>
+      <div class="not" id="oz2-not"></div>
+    </div>
+    <div class="oz tikla" data-detay="cikti">
+      <div class="baslik">Bu ay çıktı</div>
+      <div class="deger para kotu" id="oz3">—</div>
+    </div>
+    <div class="oz tikla" data-detay="borc">
+      <div class="baslik" id="oz4-baslik">Kişilere borcum</div>
+      <div class="deger para" id="oz4">—</div>
+      <div class="not" id="oz4-not"></div>
+    </div>
+    <div class="oz tikla" data-detay="cep">
+      <div class="baslik">Cebimde kalan</div>
+      <div class="deger para" id="oz5">—</div>
+      <div class="not" id="oz5-not"></div>
+    </div>
+  </div>
+
+  <div class="blok gizli" id="detay" style="margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <h2 id="detay-baslik" style="margin:0">Detay</h2>
+      <button class="dugme sade kucuk" id="detay-kapat">Kapat</button>
+    </div>
+    <div id="detay-icerik" style="margin-top:12px"></div>
+  </div>
+
+  <div class="govde">
+    <!-- ══ SOL: dönemin kendisi ══ -->
+    <div class="sutun">
+
+      <div class="blok" id="blok-plan">
+        <h2 id="plan-baslik">Bekleyenler</h2>
+        <table id="t-plan"></table>
+      </div>
+
+      <div class="blok">
+        <h2>Bu ayın hareketleri</h2>
+        <div id="filtre" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <select id="f-tur" style="width:auto;min-width:190px"></select>
+          <select id="f-kisi" style="width:auto;min-width:150px"></select>
+          <input type="text" id="f-ara" placeholder="Açıklamada ara…" style="width:auto;min-width:170px;flex:1">
+          <button class="dugme sade kucuk gizli" id="f-temizle">Filtreyi kaldır</button>
+        </div>
+        <div id="filtre-uyari" class="alt gizli" style="margin-bottom:10px"></div>
+        <table id="t-hareket"></table>
+
+        <div id="hakedis-ipucu" class="alt gizli"
+             style="margin-top:12px;padding:10px 12px;border:1px solid var(--cizgi);
+                    border-radius:9px;background:#0d1015"></div>
+        <div class="alt" id="ekle-ipucu" style="margin-top:14px;padding-top:14px;
+             border-top:1px dashed var(--cizgi)">—</div>
+        <form class="ekle" id="f-ekle" style="border-top:none;padding-top:0;margin-top:8px">
+          <label>Tarih<input type="date" name="tarih" required></label>
+          <label>Tür<select name="tur" id="tur-sec"></select></label>
+          <label id="l-kisi">Kimden / kime<input type="text" name="kisi" list="kisiler" placeholder="ad"></label>
+          <label id="l-maasay">Hangi ayın maaşı<select name="maasAy" id="maasay-sec"></select></label>
+          <datalist id="kisiler"></datalist>
+          <label>Tutar<input type="text" name="tutar" class="tutar" inputmode="decimal" placeholder="0,00" required></label>
+          <button class="dugme" type="submit">Ekle</button>
+          <label class="tam">Açıklama<input type="text" name="aciklama" placeholder="isteğe bağlı"></label>
+          <label class="onay tam"><input type="checkbox" name="planli"> Henüz olmadı — bekleyenlere ekle</label>
+        </form>
+      </div>
+
+      <div class="blok">
+        <h2>Maaş takibi — hangi ayı aldım</h2>
+        <div class="alt" style="margin-bottom:10px">
+          Paranın <strong>ne zaman</strong> geldiği değil, <strong>hangi ayın maaşı</strong>
+          olduğu esas alınır. Ödeme geç gelse de doğru aya yazılır.
+        </div>
+        <table id="t-maas"></table>
+        <div id="maas-uyari" class="alt gizli" style="margin-top:10px"></div>
+      </div>
+
+      <div class="blok">
+        <h2 id="calisma-baslik">Çalışma · mesai · izin</h2>
+        <div id="calisma-ozet" class="alt" style="margin-bottom:10px"></div>
+        <table id="t-calisma"></table>
+        <form class="ekle" id="f-calisma" style="grid-template-columns:150px 170px 110px 120px 1fr auto">
+          <label>Tarih<input type="date" name="tarih" required></label>
+          <label>Ne<select name="tur" id="calisma-tur"></select></label>
+          <label>Miktar<input type="text" name="miktar" class="tutar" inputmode="decimal" placeholder="0" required></label>
+          <label>Birim<select name="birim"><option value="gün">gün</option><option value="saat">saat</option></select></label>
+          <label>İş / açıklama<input type="text" name="aciklama" placeholder="isteğe bağlı"></label>
+          <button class="dugme" type="submit">Ekle</button>
+        </form>
+      </div>
+
+      <div class="blok">
+        <h2>Bu ayın notu</h2>
+        <textarea id="not-alani" placeholder="Bu dönemle ilgili aklında kalsın istediklerin…"></textarea>
+      </div>
+    </div>
+
+    <!-- ══ SAĞ: kümülatif ══ -->
+    <div class="sutun">
+
+      <div class="blok">
+        <h2>Maaş düzenim</h2>
+        <form class="ekle" id="f-ayarlar" style="grid-template-columns:1fr 1fr;margin:0;padding:0;border:none">
+          <label>Aylık maaşım<input type="text" name="aylikMaas" class="tutar" inputmode="decimal" placeholder="55.000"></label>
+          <label>Ayda kaç iş günü<input type="number" name="isGunu" min="1" max="31" placeholder="22"></label>
+          <label class="tam">Maaş ayın kaçında ödenmeli
+            <input type="number" name="odemeGunu" min="0" max="31" placeholder="10">
+          </label>
+          <button class="dugme tam" type="submit">Kaydet</button>
+        </form>
+        <div class="alt" id="ayar-ozet" style="margin-top:10px"></div>
+      </div>
+
+      <div class="blok">
+        <h2>Kime ne kadar borcum var</h2>
+        <div class="alt" style="margin-bottom:10px">
+          <strong>Devir</strong> önceki dönemlerden kalan, <strong>bu dönem</strong> bu ayki
+          hareketler, sağdaki rakam <strong>dönem sonu kalan</strong>.
+          “Şirket verdi” geri ödemesiz olduğu için borca girmez.
+        </div>
+        <div id="l-kisiler"></div>
+      </div>
+
+      <div class="blok">
+        <h2>Şirket tarafı</h2>
+        <div class="alt" style="margin-bottom:10px">
+          Cebinden ödediğin bir <strong>kişiye bağlıysa</strong> onun borcundan düşer,
+          buraya alacak yazılmaz. Kişi seçmediysen şirket sana borçlanır.
+        </div>
+        <div id="l-sirket"></div>
+      </div>
+
+      <div class="blok">
+        <h2>Her ay tekrar edenler</h2>
+        <table id="t-duzenli"></table>
+        <form class="ekle" id="f-duzenli" style="grid-template-columns:1fr 1fr">
+          <label class="tam">Adı<input type="text" name="ad" placeholder="Maaş, kira…" required></label>
+          <label class="tam">Tür<select name="tur" id="tur-sec-2"></select></label>
+          <label>Tutar<input type="text" name="tutar" class="tutar" inputmode="decimal" placeholder="0,00" required></label>
+          <label>Ayın kaçı<input type="number" name="gun" min="1" max="31" placeholder="1" required></label>
+          <button class="dugme tam" type="submit">Ekle</button>
+        </form>
+        <div class="alt" style="margin-top:10px">
+          Yeni bir ayı ilk açtığında bunlar oraya <strong>bekleyen</strong> olarak düşer.
+        </div>
+      </div>
+
+      <div class="blok">
+        <h2>Rapor · yedek</h2>
+        <div id="klasor-kutu" style="border:1px solid var(--cizgi);border-radius:10px;
+             padding:12px 14px;margin-bottom:12px;background:#0d1015">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span id="klasor-durum" style="flex:1;min-width:200px">—</span>
+            <button class="dugme kucuk" id="b-klasor">Klasöre bağla</button>
+            <button class="dugme sade kucuk gizli" id="b-klasor-kes">Bağlantıyı kes</button>
+          </div>
+          <div class="alt" style="margin-top:8px" id="klasor-aciklama"></div>
+        </div>
+        <div class="satirdugme">
+          <button class="dugme kucuk" id="b-kopya">Panoya kopyala</button>
+          <button class="dugme sade kucuk" id="b-yedek">Yedek indir</button>
+          <button class="dugme sade kucuk" id="b-yukle">Yedekten yükle</button>
+          <input type="file" id="dosya" accept="application/json" class="gizli">
+        </div>
+        <pre class="rapor" id="rapor-metin"></pre>
+        <div class="alt" style="margin-top:10px">
+          Kayıtlar tarayıcının hafızasında. Ara sıra yedek indir; rapor metnini
+          Google Keep'e yapıştırırsan ikinci yedeğin olur.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════
+   VERİ
+
+   Tek dizi: `hareketler`. Türü ne olduğunu, tür tablosundaki `yon` da
+   hesaba nasıl girdiğini söyler. `planli:true` → henüz olmamış, beklenen.
+   Böylece "gelecek ödemem" ve "bana gelecek para" ayrı yapı istemiyor.
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * Demo modu — `DEFTER.html?demo=1` ya da `demo.html`.
+ *
+ * İş başvurularında programı göstermek için: uydurma verilerle dolu açılır.
+ * AYRI anahtar kullanır ve klasör senkronu kapalıdır; aynı tarayıcıda
+ * açılsa bile gerçek defterin ve `yedekler/` dosyasının üstüne yazmaz.
+ */
+const DEMO = new URLSearchParams(location.search).has("demo");
+const ANAHTAR = DEMO ? "finans-defterim-demo" : "finans-defterim-v1";
+
+const TURLER = {
+  hakedis:      { ad: "Maaş hak edişi",              yon: "alacak", kisi: false },
+  maas:         { ad: "Maaş aldım",                  yon: "girdi",  kisi: false },
+  borc_aldim:   { ad: "Borç aldım (kişiden)",        yon: "girdi",  kisi: true  },
+  borc_odedim:  { ad: "Borç ödedim (kişiye)",        yon: "cikti",  kisi: true  },
+  mahsup:       { ad: "Mahsup (maaştan kesildi)",    yon: "mahsup", kisi: true  },
+  sirket_verdi: { ad: "Şirket verdi (geri ödemesiz)",yon: "notr",   kisi: true  },
+  affedildi:    { ad: "Borcu istemedi (affetti)",    yon: "notr",   kisi: true  },
+  odeme_dondu:  { ad: "Ödemem geri döndü (kabul etmedi)", yon: "girdi", kisi: true },
+  cepten:       { ad: "Şirket için cebimden",        yon: "cikti",  kisi: true  },
+  gelir:        { ad: "Diğer gelir",                 yon: "girdi",  kisi: false },
+  gider:        { ad: "Diğer gider",                 yon: "cikti",  kisi: false },
+};
+
+/** Çalışma kayıtları — maaşın neye dayandığını görebilmek için. */
+const CALISMA_TURLERI = {
+  calisma: { ad: "Çalıştım",  birim: "gün"  },
+  mesai:   { ad: "Mesai",     birim: "saat" },
+  izin:    { ad: "İzin",      birim: "gün"  },
+  rapor:   { ad: "Raporlu",   birim: "gün"  },
+  tatil:   { ad: "Resmî tatil", birim: "gün" },
+};
+
+/**
+ * Ayarlar — maaş düzeninin kendisi.
+ *
+ * ⚠️ Maaş dönemi her zaman TAKVİM AYI değildir: ödeme ayın ortasında
+ * yapılıyorsa para, tarihine göre değil ait olduğu döneme göre sayılmalı.
+ * Program 1–31 diye baksaydı ayın başında alınan maaş bir sonraki aya
+ * düşerdi. "Hangi ayın maaşını aldım" karmaşasının kaynağı tam olarak bu.
+ */
+const VARSAYILAN_AYARLAR = { aylikMaas: 0, isGunu: 22, odemeGunu: 0 };
+
+const BOS = { surum: 1, hareketler: [], notlar: {}, duzenli: [], calismalar: [],
+              ayarlar: { ...VARSAYILAN_AYARLAR } };
+
+/**
+ * Demo defteri — UYDURMA veri. Gerçek kişi ve tutar yok.
+ *
+ * Tarihler bugüne göre kurulur (son üç ay + bu ay), demo her açılışta
+ * güncel görünsün diye. Programın her özelliğine bir örnek düşüyor:
+ * ayın 10'unda olması gerekirken kayan maaş ve `maasAy` etiketi, parça
+ * parça ödenen maaş, maaştan mahsup, kişiden borç (devir/kalan), affedilen
+ * borç, şirket için cepten ödeme, düzenli giderler, çalışma kayıtları.
+ *
+ * ⚠️ Fonksiyon BİLDİRİMİ ve kendi yardımcılarıyla yazılı: `let veri = yukle()`
+ * aşağıdaki const yardımcılardan (yerel, yeniId…) önce çalışıyor.
+ */
+function demoVerisi(){
+  const simdi = new Date();
+  const ay = (n) => ayKodu(new Date(simdi.getFullYear(), simdi.getMonth() - n, 1));
+  const ayIsmi = (k) => { const [y,a] = k.split("-").map(Number);
+    return new Date(y, a-1, 1).toLocaleDateString("tr-TR", { month: "long" }); };
+  const tarih = (k, gun) => { const [y,a] = k.split("-").map(Number);
+    return `${k}-${String(Math.min(gun, new Date(y, a, 0).getDate())).padStart(2,"0")}`; };
+  const k0 = ay(0), k1 = ay(1), k2 = ay(2), k3 = ay(3);
+  const bugunGun = simdi.getDate();
+
+  let sayac = 0;
+  const hareketler = [], calismalar = [];
+  const h = (k, gun, tur, tutar, aciklama, ek = {}) => {
+    const kayit = { id: "demo" + (++sayac), tarih: tarih(k, gun), tur, kisi: "", tutar, aciklama, ...ek };
+    // Bu ayın henüz gelmemiş günleri "bekleyen" sayılır.
+    if (k === k0 && gun > bugunGun) kayit.planli = true;
+    hareketler.push(kayit);
+  };
+  const c = (k, gun, tur, miktar, birim, aciklama = "") =>
+    calismalar.push({ id: "democ" + (++sayac), tarih: tarih(k, gun), tur, miktar, birim, aciklama });
+
+  const duzenli = [
+    { id: "demo-kira",     ad: "Ev kirası",        tur: "gider", tutar: 14000, gun: 1  },
+    { id: "demo-internet", ad: "İnternet",         tur: "gider", tutar: 650,   gun: 15 },
+    { id: "demo-telefon",  ad: "Telefon faturası", tur: "gider", tutar: 420,   gun: 20 },
+  ];
+  const duzenliOldu = (k) => { for (const d of duzenli)
+    h(k, d.gun, d.tur, d.tutar, d.ad, { kaynak: d.id }); };
+
+  // ── 3 ay önce: deftere başlanan ay ──
+  h(k3, 1, "gelir", 18000, "Açılış bakiyesi (deftere başlarken cepteki)");
+  duzenliOldu(k3);
+  h(k3, 6, "gider", 2350, "Market");
+  h(k3, 9, "borc_aldim", 5000, "Tamir masrafı için", { kisi: "Selin K." });
+  h(k3, 12, "borc_aldim", 500, "Akşam yemeği hesabı", { kisi: "Ozan" });
+  h(k3, 18, "gider", 1280, "Elektrik + doğalgaz");
+  h(k3, 22, "gider", 2100, "Market");
+  h(k3, 27, "gider", 1200, "Aylık ulaşım kartı");
+  h(k3, 30, "hakedis", 42000, "Aylık maaş", { maasAy: k3 });
+  c(k3, 30, "calisma", 21, "gün", "Ay toplamı");
+  c(k3, 19, "mesai", 6, "saat", "Sevkiyat yetişsin diye");
+  c(k3, 11, "izin", 1, "gün", "Yıllık izin");
+
+  // ── 2 ay önce: maaş iki parçada geldi ──
+  h(k2, 9, "maas", 25000, "Maaşın ilk kısmı", { maasAy: k3 });
+  h(k2, 16, "maas", 17000, "Maaşın kalanı", { maasAy: k3 });
+  duzenliOldu(k2);
+  h(k2, 5, "gider", 2600, "Market");
+  h(k2, 11, "borc_odedim", 2000, "İlk taksit", { kisi: "Selin K." });
+  h(k2, 13, "affedildi", 500, "\"Benden olsun\" dedi", { kisi: "Ozan" });
+  h(k2, 14, "borc_aldim", 8000, "Araç sigortası için", { kisi: "Burak T." });
+  h(k2, 17, "sirket_verdi", 1500, "Yol yardımı (geri ödemesiz)", { kisi: "Atölye — Kemal Usta" });
+  h(k2, 21, "gelir", 6000, "Hafta sonu freelance iş");
+  h(k2, 24, "gider", 1340, "Elektrik + doğalgaz");
+  h(k2, 26, "gider", 1200, "Aylık ulaşım kartı");
+  h(k2, 28, "gider", 1950, "Market");
+  h(k2, 30, "hakedis", 42000, "Aylık maaş", { maasAy: k2 });
+  c(k2, 30, "calisma", 22, "gün", "Ay toplamı");
+  c(k2, 8, "mesai", 4, "saat");
+  c(k2, 23, "mesai", 8, "saat", "Cumartesi");
+
+  // ── Geçen ay: avans maaştan mahsup edildi ──
+  h(k1, 3, "borc_aldim", 4000, "Avans", { kisi: "Atölye — Kemal Usta" });
+  h(k1, 10, "maas", 42000, "Maaş", { maasAy: k2 });
+  duzenliOldu(k1);
+  h(k1, 7, "gider", 2480, "Market");
+  h(k1, 12, "borc_odedim", 3000, "Kalan borç kapandı", { kisi: "Selin K." });
+  h(k1, 15, "cepten", 1250, "Kargo + kırtasiye (şirket adına)");
+  h(k1, 19, "borc_odedim", 3000, "Kısmi ödeme", { kisi: "Burak T." });
+  h(k1, 22, "gelir", 2500, "İkinci el satış");
+  h(k1, 23, "gider", 1410, "Elektrik + doğalgaz");
+  h(k1, 26, "gider", 1200, "Aylık ulaşım kartı");
+  h(k1, 27, "gider", 2200, "Market");
+  h(k1, 30, "hakedis", 42000, "Aylık maaş", { maasAy: k1 });
+  h(k1, 30, "mahsup", 4000, "Avans maaştan kesildi", { kisi: "Atölye — Kemal Usta", maasAy: k1 });
+  c(k1, 30, "calisma", 20, "gün", "Ay toplamı");
+  c(k1, 16, "rapor", 1, "gün", "Grip");
+  c(k1, 29, "tatil", 1, "gün", "Resmî tatil");
+
+  // ── Bu ay: maaş kaydı ayın 10'undan önce geldi, geçen ayın maaşı olarak etiketli ──
+  duzenliOldu(k0);   // kira geçti; internet ve telefon bekleyen kalır
+  const maasGunu = Math.min(3, bugunGun);
+  h(k0, maasGunu, "maas", 38000, `${ayIsmi(k1)} maaşı (avans düşülmüş)`, { maasAy: k1 });
+  h(k0, Math.min(2, bugunGun), "cepten", 850, "Numune kargosu (şirket adına)");
+  h(k0, 18, "borc_odedim", 2500, "Taksit — sözleştiğimiz gün", { kisi: "Burak T." });
+  h(k0, 25, "gelir", 4000, "Freelance teslim — ödeme bekleniyor");
+  c(k0, bugunGun, "calisma", Math.max(1, Math.round(bugunGun * 5 / 7)), "gün", "Şu ana kadar");
+
+  return {
+    ...structuredClone(BOS),
+    hareketler, calismalar, duzenli,
+    notlar: {
+      [k1]: "Burak'a kalan borç 5.000 — gelecek ay taksitle kapanacak.",
+      [k0]: `Maaş ayın ${maasGunu}'inde geldi; ${ayIsmi(k1)} maaşı olarak işaretlendi, ${ayIsmi(k0)} hesabına karışmadı.`,
+    },
+    ayarlar: { aylikMaas: 42000, isGunu: 22, odemeGunu: 10 },
+  };
+}
+
+let veri = yukle();
+let donem = ayKodu(new Date());
+/**
+ * Hareket listesi filtresi.
+ *
+ * Kullanıcı isteği: *"ne giderim olmuş, sadece giderleri göstersin."*
+ * Bilerek KAYDEDİLMİYOR — sayfayı yenileyince sıfırlanır. Kalıcı olsaydı
+ * bir dahaki açılışta "kayıtlarım nerede" derdin. Ayrıca filtre açıkken
+ * bölümün kenarı sarıya döner ve kaç kayıt gizlendiği yazar.
+ */
+const filtre = { tur: "", kisi: "", ara: "" };
+
+/** Şu an satır içinde düzenlenen kaydın kimliği — yoksa null. */
+let duzenlenen = null;
+/** Aynısı çalışma kayıtları için. */
+let duzenlenenCalisma = null;
+/** Aynısı düzenli (her ay tekrar eden) kayıtlar için. */
+let duzenlenenDuzenli = null;
+
+/* ── Yardımcılar ──────────────────────────────────────────── */
+/* Not: fonksiyon BİLDİRİMİ olarak yazılı (arrow değil) — yukarıdaki
+   `let donem = ayKodu(...)` satırı bundan önce çalışıyor. Arrow olsaydı
+   sayfa hiç açılmazdı. */
+function ayKodu(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
+function ayAdi(k){ const [y,a]=k.split("-").map(Number);
+  return new Date(y,a-1,1).toLocaleDateString("tr-TR",{month:"long",year:"numeric"}).toLocaleUpperCase("tr-TR"); }
+function ayKaydir(k,n){ const [y,a]=k.split("-").map(Number); return ayKodu(new Date(y,a-1+n,1)); }
+function bugun(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  return d.toISOString().slice(0,10); }
+
+const gunAdi = (t) => t.toLocaleDateString("tr-TR",{day:"numeric",month:"short"});
+const yerel = (d) => { const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset());
+  return x.toISOString().slice(0,10); };
+
+/**
+ * Dönemin ilk ve son günü — takvim ayı.
+ *
+ * ⚠️ Bir ara "dönem ayın ortasında başlasın" diye kurulmuştu; YANLIŞTI.
+ * Ödeme günü sabit olmayabilir, öne ya da arkaya kayabilir — kullanıcı
+ * ayın başında aldığı paranın hangi aya ait olduğunu karıştırıyordu. Sınırı
+ * kaydırmak bunu çözmez, sadece sınırı başka yere taşır. Doğrusu paranın
+ * HANGİ AYIN MAAŞI olduğunu etiketlemek — `maasAy` alanı bunun için.
+ */
+function donemSinirlari(k){
+  const [y,a] = k.split("-").map(Number);
+  const sonGun = new Date(y, a, 0).getDate();
+  return { ilk: `${k}-01`, son: `${k}-${String(sonGun).padStart(2,"0")}` };
+}
+const donemAdi = (k) => ayAdi(k);
+
+/**
+ * Ekleme formundaki tarihi içinde bulunulan DÖNEME kilitler.
+ *
+ * ⚠️ Kullanıcının bildirdiği hata: *"15 Haziran'da kaydetmek istiyorum,
+ * 15 Ağustos'a gidiyor."* Sebebi: tarih kutusu hep BUGÜNÜ gösteriyordu.
+ * Haziran'a geçsen bile içinde Ağustos yazıyordu; tarihi elle düzeltmeyi
+ * unutunca kayıt Ağustos'a düşüyor ve baktığın ekrandan kayboluyordu.
+ * Dalgınlık değil, tasarım hatası.
+ *
+ * Artık: dönem değişince tarih o ayın içine çekilir ve `min`/`max` ile
+ * başka aya kaymaya izin verilmez. Geçerli ay ise bugün, değilse ayın 1'i.
+ */
+function formTarihiniAyarla(){
+  const s = donemSinirlari(donem);
+  const b = bugun();
+  const icinde = (t) => t >= s.ilk && t <= s.son;
+  for (const sec of ['#f-ekle input[name="tarih"]', '#f-calisma input[name="tarih"]']){
+    const g = document.querySelector(sec);
+    if (!g) continue;
+    g.min = s.ilk; g.max = s.son;
+    if (!icinde(g.value)) g.value = icinde(b) ? b : s.ilk;
+  }
+}
+const tarihTR = (g) => g ? g.split("-").reverse().join(".") : "—";
+
+/**
+ * Metinden para okur. Türkçe yazımı bilir: nokta binlik, virgül ondalık.
+ * "1.500"→1500 · "1.500,50"→1500,5 · "1500"→1500
+ * Düz `Number()` "1.500"ü 1,5 okur ve sessizce yanlış tutar kaydeder.
+ */
+function paraOku(v){
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  let s = String(v ?? "").trim().replace(/[^\d.,-]/g,"");
+  if (!s) return 0;
+  if (s.includes(",")) s = s.replace(/\./g,"").replace(",",".");
+  else if ((s.match(/\./g)||[]).length > 1) s = s.replace(/\./g,"");
+  else if (/\.\d{3}$/.test(s)) s = s.replace(/\./g,"");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+const TL = (n) => (Number(n)||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2}) + " TL";
+/** Düzenleme kutusuna biçimli değer: 30000 → "30.000" · 1500.5 → "1.500,50" */
+function duzenlemeIcin(n){
+  const s = (Number(n)||0).toLocaleString("tr-TR",{minimumFractionDigits:0,maximumFractionDigits:2});
+  return s;
+}
+
+/**
+ * Tutar kutusunu YAZARKEN biçimler: 10000 → 10.000 · 1234,5 → 1.234,5
+ *
+ * Kullanıcı isteği: "tutarları girerken otomatik biçimlendirsin."
+ * Haklı — binlik ayracı olmadan 6 haneli rakamı gözle doğrulamak zor,
+ * bir sıfır fazla/eksik yazdığın anlaşılmıyor.
+ *
+ * İmleç konumu korunuyor: nokta eklendiğinde imleç sağa kaymasın diye
+ * imleçten önceki RAKAM sayısı sayılıp yeni metinde aynı yere konuyor.
+ */
+function tutarBicimle(el){
+  const oncesi = el.value.slice(0, el.selectionStart ?? el.value.length);
+  const rakamSayisi = (oncesi.match(/[\d,]/g) || []).length;
+
+  let ham = el.value.replace(/[^\d,]/g, "");
+  const parca = ham.split(",");
+  let tam = parca[0].replace(/^0+(?=\d)/, "");
+  const ondalik = parca.length > 1 ? "," + parca.slice(1).join("").slice(0, 2) : "";
+  tam = tam.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  el.value = tam + ondalik;
+
+  let sayilan = 0, i = 0;
+  for (; i < el.value.length && sayilan < rakamSayisi; i++)
+    if (/[\d,]/.test(el.value[i])) sayilan++;
+  try { el.setSelectionRange(i, i); } catch (_) {}
+}
+
+// Bütün tutar kutuları için — satır içi düzenlemede sonradan doğanlar dahil.
+document.addEventListener("input", (e) => {
+  if (e.target.classList?.contains("tutar")) tutarBicimle(e.target);
+});
+const kacir = (s) => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const yeniId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const topla = (d) => d.reduce((s,h)=>s+paraOku(h.tutar),0);
+
+/* ── Kayıt ────────────────────────────────────────────────── */
+function duzelt(v){
+  if (!v || typeof v!=="object" || Array.isArray(v)) throw new Error("Dosya defter yedeği değil.");
+  if (!Array.isArray(v.hareketler)) throw new Error("Dosya defter yedeği değil (hareketler yok).");
+  return {
+    surum: 1,
+    guncelleme: Number(v.guncelleme) || 0,
+    hareketler: v.hareketler.filter(h=>h&&typeof h==="object")
+      .map(h=>({ ...h, id:h.id||yeniId(), tutar:paraOku(h.tutar) })),
+    notlar: (v.notlar && typeof v.notlar==="object" && !Array.isArray(v.notlar)) ? v.notlar : {},
+    duzenli: Array.isArray(v.duzenli)
+      ? v.duzenli.filter(d=>d&&typeof d==="object").map(d=>({ ...d, id:d.id||yeniId(), tutar:paraOku(d.tutar) }))
+      : [],
+    calismalar: Array.isArray(v.calismalar)
+      ? v.calismalar.filter(c=>c&&typeof c==="object").map(c=>({ ...c, id:c.id||yeniId(), miktar:paraOku(c.miktar) }))
+      : [],
+    ayarlar: {
+      ...VARSAYILAN_AYARLAR,
+      ...(v.ayarlar && typeof v.ayarlar === "object" ? v.ayarlar : {}),
+      aylikMaas: paraOku(v.ayarlar?.aylikMaas),
+      isGunu: Math.min(31, Math.max(1, Number(v.ayarlar?.isGunu) || 22)),
+      odemeGunu: Math.min(31, Math.max(0, Number(v.ayarlar?.odemeGunu) || 0)),
+    },
+  };
+}
+function yukle(){
+  let ham=null;
+  try { ham = localStorage.getItem(ANAHTAR); } catch(e){ console.warn(e); }
+  if (!ham) return DEMO ? duzelt(demoVerisi()) : structuredClone(BOS);
+  try { return duzelt(JSON.parse(ham)); }
+  catch(e){
+    // Bozuk kaydı silme — kenara koy, elle kurtarılabilsin.
+    try { localStorage.setItem(ANAHTAR+"-bozuk", ham); localStorage.removeItem(ANAHTAR); } catch(_){}
+    setTimeout(()=>alert("Kayıtlar okunamadı ("+e.message+").\nBozuk kayıt saklandı, defter boş açıldı.\nYedeğin varsa geri yükleyebilirsin."),0);
+    return structuredClone(BOS);
+  }
+}
+function diskeYaz(){
+  veri.guncelleme = Date.now();   // klasör senkronunda hangisi yeni, ona bakılıyor
+  try{ localStorage.setItem(ANAHTAR, JSON.stringify(veri)); }
+  catch(e){ alert("Kayıt yazılamadı: "+e.message); }
+  dosyayaYazGecikmeli();
+}
+function kaydet(){ diskeYaz(); ciz(); }
+
+/* ── Hesap ────────────────────────────────────────────────── */
+/** Tarih bu dönemin içinde mi — sınırlar `baslangicGun`e göre kayabilir. */
+function donemdeMi(tarih, k){
+  const s = donemSinirlari(k);
+  return !!tarih && tarih >= s.ilk && tarih <= s.son;
+}
+const donemin = (k) => veri.hareketler.filter(h => donemdeMi(h.tarih, k));
+
+function ozet(k){
+  const hepsi = donemin(k);
+  const olan = hepsi.filter(h=>!h.planli);
+  const plan = hepsi.filter(h=>h.planli);
+  const t = (d,yon) => topla(d.filter(h => TURLER[h.tur]?.yon === yon));
+  const hakedis = t(olan,"alacak");
+  const mahsup  = t(olan,"mahsup");
+  const maasAlinan = topla(olan.filter(h=>h.tur==="maas"));
+  return {
+    hepsi, olan, plan, hakedis, mahsup, maasAlinan,
+    girdi: t(olan,"girdi"), cikti: t(olan,"cikti"),
+    maasKalan: hakedis - maasAlinan - mahsup,
+    planGirdi: t(plan,"girdi") + t(plan,"alacak"),
+    planCikti: t(plan,"cikti"),
+  };
+}
+
+/** Kişi bazlı borç, bütün dönemler. "Şirket verdi" borca girmez. */
+/**
+ * Bir hareketin KİŞİ BORCUNA etkisi. Artı borç doğurur, eksi kapatır.
+ * "Şirket verdi" geri ödemesiz olduğu için sıfır — kayıtta durur, borca girmez.
+ */
+function borcEtkisi(h){
+  const t = paraOku(h.tutar);
+  switch (h.tur){
+    case "borc_aldim":   return  t;   // ondan aldım
+    case "odeme_dondu":  return  t;   // ödemem geri döndü, borç yeniden açıldı
+    case "borc_odedim":  return -t;   // geri verdim
+    case "mahsup":       return -t;   // maaşımdan kesildi
+    case "cepten":       return -t;   // şirket için cebimden ödedim
+    case "affedildi":    return -t;   // istemedi
+    default:             return  0;   // sirket_verdi ve para hareketleri
+  }
+}
+
+/**
+ * Kişi bazlı borç — DÖNEMSEL.
+ *
+ * ⚠️ Eskiden bütün dönemlerin toplamını gösteriyordu ve karışıyordu:
+ * *"Bir kişiden borç aldıysam belki onu ödedim, ama bu ay hepsini birden
+ * gösteriyor."* Artık muhasebedeki gibi üç rakam var:
+ *
+ *   DEVİR  (bu dönemden önceki bakiye)
+ * + BU DÖNEM (dönem içindeki hareketler)
+ * = KALAN  (dönem sonu bakiyesi)
+ *
+ * Haziran'da alıp Temmuz'da ödediysen Temmuz'da: devir 2.000, bu dönem
+ * −2.000, kalan 0. Ne olduğu apaçık.
+ */
+function kisiler(kod = donem){
+  const s = donemSinirlari(kod);
+  const m = {};
+  const al = (ad) => (m[ad] ??= { ad, devir:0, donem:0, sirket:0, kayitlar:[] });
+
+  for (const h of veri.hareketler){
+    if (h.planli) continue;
+    const ad = String(h.kisi||"").trim(); if (!ad) continue;
+    const t = paraOku(h.tutar);
+    const etki = borcEtkisi(h);
+    const k = al(ad);
+    if ((h.tarih||"") < s.ilk){
+      k.devir += etki;
+    } else if ((h.tarih||"") <= s.son){
+      k.donem += etki;
+      k.kayitlar.push(h);
+      if (h.tur === "sirket_verdi") k.sirket += t;
+    }
+  }
+  return Object.values(m)
+    .map(k => ({ ...k, kalan: k.devir + k.donem }))
+    .filter(k => Math.abs(k.kalan) > 0.005 || Math.abs(k.devir) > 0.005 || k.kayitlar.length)
+    .sort((a,b) => b.kalan - a.kalan);
+}
+
+/**
+ * Şirket tarafı — dönemsel.
+ *
+ * ⚠️ Burası bir ara saçmalıyordu: yalnız KİŞİYE BAĞLANMAMIŞ cepten ödemeleri
+ * sayıyordu ve toplamı bütün dönemlerden alıyordu. Cepten ödeme girerken
+ * artık kişi seçildiği için (o kişinin hesabından düşsün diye) burası hep
+ * 0 gösteriyor, üstelik NİYE 0 olduğunu söylemiyordu.
+ *
+ * Üç ayrı şey var, üçü de ayrı gösterilmeli:
+ *   • alacak     — cebimden ödeyip kimseye bağlamadıklarım → şirket bana borçlu
+ *   • kisiden    — cebimden ödeyip bir kişinin hesabından düştüklerim (bilgi)
+ *   • verdi      — şirketin geri ödemesiz verdiği (ne borç ne alacak, bilgi)
+ */
+function sirketDurumu(kod = donem){
+  const s = donemSinirlari(kod);
+  const bos = (h) => !String(h.kisi||"").trim();
+  let donemAlacak = 0;
+  const kayitlar = [], kisiden = [], verdi = [];
+
+  // ⚠️ DEVİR YOK — bilerek. Kullanıcı isteği: *"cebimden yatırdıysam o dönemde
+  // göstersin yeterli, her ay da söylemesine gerek yok; borçlara karşılık
+  // affedildi zaten."* Kişi borçlarında devir mantıklı (borç birikir), ama
+  // şirkete yapılan ödemeler dönem içinde kapanıyor; taşımak her ay aynı
+  // rakamı tekrar tekrar göstermek olurdu.
+  for (const h of veri.hareketler){
+    if (h.planli) continue;
+    if ((h.tarih||"") < s.ilk || (h.tarih||"") > s.son) continue;
+    const t = paraOku(h.tutar);
+    if (h.tur === "cepten"){
+      if (bos(h)){ donemAlacak += t; kayitlar.push(h); }
+      else kisiden.push(h);
+    }
+    if (h.tur === "sirket_verdi") verdi.push(h);
+  }
+  return { devir: 0, donem: donemAlacak, kalan: donemAlacak, kayitlar, kisiden, verdi };
+}
+/** Geriye dönük uyumluluk — eski çağrılar dönem sonu kalanını alsın. */
+const sirketAlacagi = (kod = donem) => sirketDurumu(kod).kalan;
+
+/**
+ * Bir kaydın hangi AYIN MAAŞI olduğu.
+ *
+ * Etiket varsa (`maasAy`) o geçerlidir — tarih ne olursa olsun.
+ * Asıl dert buydu: ödeme günü kayabiliyor, ayın başında gelen para bir
+ * önceki ayın maaşı olabiliyor. Etiket yoksa tarihin
+ * ayına düşer (eski kayıtlar bozulmasın diye).
+ */
+const maasAyi = (h) => h.maasAy || (h.tarih||"").slice(0,7);
+
+/** Ay ay maaş tablosu: hak ediş, ödenen, kalan ve ödemelerin listesi. */
+function maasTakibi(){
+  const m = {};
+  const al = (ay) => (m[ay] ??= { ay, hakedis:0, odenen:0, mahsup:0, odemeler:[], planli:0 });
+  for (const h of veri.hareketler){
+    if (!["hakedis","maas","mahsup"].includes(h.tur)) continue;
+    const ay = maasAyi(h);
+    if (!ay) continue;
+    const k = al(ay), t = paraOku(h.tutar);
+    if (h.planli){ if (h.tur==="maas") k.planli += t; continue; }
+    if (h.tur==="hakedis") k.hakedis += t;
+    if (h.tur==="maas"){ k.odenen += t; k.odemeler.push(h); }
+    if (h.tur==="mahsup") k.mahsup += t;
+  }
+  return Object.values(m)
+    .map(k => ({ ...k, kalan: k.hakedis - k.odenen - k.mahsup }))
+    .sort((a,b)=>b.ay.localeCompare(a.ay));
+}
+
+/** Dönemin çalışma özeti: türe ve birime göre toplar. */
+function calismaOzeti(k){
+  const kayit = (veri.calismalar||[]).filter(c => donemdeMi(c.tarih, k));
+  const t = {};
+  for (const c of kayit){
+    const anahtar = c.tur + "|" + (c.birim || CALISMA_TURLERI[c.tur]?.birim || "gün");
+    t[anahtar] = (t[anahtar] || 0) + paraOku(c.miktar);
+  }
+  return { kayit, toplamlar: t };
+}
+/** "18 gün çalıştım · 12 saat mesai · 2 gün izin" gibi tek satır. */
+function calismaCumlesi(k){
+  const { toplamlar } = calismaOzeti(k);
+  const parca = Object.entries(toplamlar).map(([a,v]) => {
+    const [tur,birim] = a.split("|");
+    const sayi = v.toLocaleString("tr-TR",{maximumFractionDigits:2});
+    return `${sayi} ${birim} ${(CALISMA_TURLERI[tur]?.ad || tur).toLocaleLowerCase("tr-TR")}`;
+  });
+  return parca.length ? parca.join(" · ") : "";
+}
+
+/** Cebinde kalan — kaydedilmiş bütün dönemlerin girdi/çıktı farkı. */
+function cepDurumu(){
+  const olan = veri.hareketler.filter(h=>!h.planli);
+  const t = (yon) => topla(olan.filter(h => TURLER[h.tur]?.yon === yon));
+  const girdi = t("girdi"), cikti = t("cikti");
+  return { girdi, cikti, kalan: girdi - cikti };
+}
+
+/** Düzenli kayıtları döneme bekleyen olarak düşürür; aynı döneme iki kez düşmez. */
+function duzenliyiGetir(k){
+  let eklendi=false;
+  for (const d of veri.duzenli){
+    if (veri.hareketler.some(h => h.kaynak===d.id && donemdeMi(h.tarih, k))) continue;
+    const s = donemSinirlari(k);
+    const [yy,aa] = s.ilk.split("-").map(Number);
+    const istenen = Math.min(31, Math.max(1, Number(d.gun)||1));
+    // İstenen gün dönemin içine düşmüyorsa dönemin ilk gününe koy.
+    let t = yerel(new Date(yy, aa-1, istenen));
+    if (!(t >= s.ilk && t <= s.son)) t = yerel(new Date(yy, aa, istenen));
+    if (!(t >= s.ilk && t <= s.son)) t = s.ilk;
+    veri.hareketler.push({ id:yeniId(), kaynak:d.id, tarih:t, tur:d.tur,
+      kisi:d.kisi||"", tutar:paraOku(d.tutar), aciklama:d.ad, planli:true });
+    eklendi=true;
+  }
+  if (eklendi) diskeYaz();
+}
+
+/* ── Çizim ────────────────────────────────────────────────── */
+function ciz(){
+  duzenliyiGetir(donem);
+  const o = ozet(donem);
+  const kd = kisiler();
+
+  document.getElementById("donem-ad").textContent = donemAdi(donem);
+  document.getElementById("b-bugun").classList.toggle("gizli", donem === ayKodu(new Date()));
+  document.getElementById("ust-alt").textContent =
+    `${o.olan.length} hareket · ${o.plan.length} bekleyen`;
+
+  if (o.hakedis > 0){
+    document.getElementById("oz1-baslik").textContent = "Bu aydan kalan maaş";
+    document.getElementById("oz1").textContent = TL(o.maasKalan);
+    document.getElementById("oz1-not").textContent =
+      `hak ediş ${TL(o.hakedis)} − alınan ${TL(o.maasAlinan)}` + (o.mahsup ? ` − mahsup ${TL(o.mahsup)}` : "");
+  } else {
+    document.getElementById("oz1-baslik").textContent = "Bu ay fark";
+    document.getElementById("oz1").textContent = TL(o.girdi - o.cikti);
+    document.getElementById("oz1-not").textContent = "bu ay hak ediş girilmedi";
+  }
+  document.getElementById("oz2").textContent = TL(o.girdi);
+  document.getElementById("oz2-not").textContent = o.plan.length
+    ? `ayrıca ${TL(o.planGirdi)} bekleniyor` : "";
+  document.getElementById("oz3").textContent = TL(o.cikti);
+
+  const toplamBorc = kd.reduce((s,k)=>s+k.kalan,0);
+  document.getElementById("oz4-baslik").textContent = `Kişilere borcum (${donemAdi(donem)} sonu)`;
+  document.getElementById("oz4").textContent = TL(toplamBorc);
+  document.getElementById("oz4").className = "deger para " + (toplamBorc>0.005 ? "kotu" : "iyi");
+  const alacak = sirketAlacagi();
+  document.getElementById("oz4-not").textContent =
+    alacak>0.005 ? `bu dönem şirketten ${TL(alacak)} alacağın var` : "";
+
+  const cep = cepDurumu();
+  document.getElementById("oz5").textContent = TL(cep.kalan);
+  document.getElementById("oz5").className = "deger para " + (cep.kalan>=0 ? "iyi" : "kotu");
+  document.getElementById("oz5-not").textContent =
+    `tüm dönemler: giren ${TL(cep.girdi)} − çıkan ${TL(cep.cikti)}`;
+
+  if (acikDetay) detayCiz(acikDetay);
+
+  cizTablo("t-plan", [...o.plan].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||"")), true);
+  const suzulmus = suz(o.olan);
+  cizTablo("t-hareket", [...suzulmus].sort((a,b)=>(b.tarih||"").localeCompare(a.tarih||"")), false);
+  cizFiltre(o.olan, suzulmus);
+  document.getElementById("plan-baslik").textContent =
+    o.plan.length ? `Bekleyenler — ${TL(o.planGirdi - o.planCikti)}` : "Bekleyenler";
+  document.getElementById("blok-plan").classList.toggle("gizli", o.plan.length === 0 && !duzenlenen);
+
+  document.getElementById("l-kisiler").innerHTML = kd.length
+    ? kd.map(k=>{
+        const parcalar = [];
+        if (Math.abs(k.devir) > 0.005) parcalar.push(`devir ${TL(k.devir)}`);
+        if (Math.abs(k.donem) > 0.005)
+          parcalar.push(`bu dönem ${k.donem>0?"+":"−"}${TL(Math.abs(k.donem))}`);
+        if (!parcalar.length) parcalar.push("bu dönem hareket yok");
+        if (k.sirket) parcalar.push(`şirketten ${TL(k.sirket)} (borç değil)`);
+        // Eksi bakiye = o kişi SANA borçlu. Çıplak "−500 TL" kafa karıştırıyordu.
+        const tersine = k.kalan < -0.005;
+        if (tersine) parcalar.push("fazladan ödemişsin");
+        return `<div class="kisi-sat">
+          <div><div class="ad">${kacir(k.ad)}</div>
+            <div class="alt">${parcalar.join(" · ")}</div></div>
+          <div style="text-align:right;white-space:nowrap">
+            <div class="para ${k.kalan>0.005?"kotu":"iyi"}" style="font-weight:600">${TL(Math.abs(k.kalan))}</div>
+            <div class="alt" style="font-size:11px">${
+              k.kalan>0.005 ? "borcum" : tersine ? "o bana borçlu" : "kapalı"}</div>
+          </div>
+        </div>`;
+      }).join("")
+    : `<div class="bos">Bu dönem sonunda kimseye borcun görünmüyor.</div>`;
+
+  const sd = sirketDurumu(donem);
+  const satirlar = [];
+  if (Math.abs(sd.kalan) > 0.005 || sd.kayitlar.length){
+    satirlar.push(`<div class="kisi-sat">
+      <div><div class="ad">Cebimden ödediklerim</div>
+        <div class="alt">bu dönemde ödediğim — şirket sana borçlu</div></div>
+      <div class="para iyi" style="font-weight:600">${TL(sd.kalan)}</div></div>`);
+  }
+  if (sd.kisiden.length){
+    const t = topla(sd.kisiden);
+    const kimler = [...new Set(sd.kisiden.map(h=>h.kisi))].join(", ");
+    satirlar.push(`<div class="kisi-sat">
+      <div><div class="ad">Cebimden ödeyip kişiden düştüklerim</div>
+        <div class="alt">${kimler} — borcundan düşüldü, buraya alacak yazılmaz</div></div>
+      <div class="para" style="font-weight:600;color:var(--soluk)">${TL(t)}</div></div>`);
+  }
+  if (sd.verdi.length){
+    const t = topla(sd.verdi);
+    satirlar.push(`<div class="kisi-sat">
+      <div><div class="ad">Şirketin verdiği (geri ödemesiz)</div>
+        <div class="alt">ne borç ne alacak — sadece kayıt</div></div>
+      <div class="para" style="font-weight:600;color:var(--soluk)">${TL(t)}</div></div>`);
+  }
+  document.getElementById("l-sirket").innerHTML = satirlar.length
+    ? satirlar.join("")
+    : `<div class="bos">Bu dönem şirketle ilgili hareket yok.</div>`;
+
+  const td = document.getElementById("t-duzenli");
+  td.innerHTML = veri.duzenli.length
+    ? `<tbody>${veri.duzenli.map(d=>{
+        if (d.id === duzenlenenDuzenli) return duzenliDuzenlemeSatiri(d);
+        return `<tr>
+          <td>${kacir(d.ad)}<div class="alt">${TURLER[d.tur]?.ad||d.tur} · her ayın ${d.gun}'i</div></td>
+          <td class="sag para">${TL(d.tutar)}</td>
+          <td class="islem">
+            <button class="mini" data-duzenle-duzenli="${d.id}" title="Düzenle">✎</button>
+            <button class="mini sil sil-duzenli" data-id="${d.id}" title="Sil">✕</button>
+          </td>
+        </tr>`;
+      }).join("")}</tbody>`
+    : `<tbody><tr><td class="bos">Tekrar eden kayıt yok.</td></tr></tbody>`;
+
+  maasAyGorunur();
+  cizMaasTakibi();
+  cizCalisma();
+  cizAyarlar(o);
+  formTarihiniAyarla();
+  document.getElementById("ekle-ipucu").innerHTML =
+    `Yeni kayıt <strong style="color:var(--vurgu)">${donemAdi(donem)}</strong> dönemine eklenecek.`;
+  document.getElementById("not-alani").value = veri.notlar[donem] || "";
+  document.getElementById("rapor-metin").textContent = rapor();
+  yedekUyarisi();
+  document.getElementById("kisiler").innerHTML =
+    [...new Set(veri.hareketler.map(h=>h.kisi).filter(Boolean))].map(k=>`<option value="${kacir(k)}">`).join("");
+}
+
+function cizTablo(id, kayitlar, planMi){
+  const el = document.getElementById(id);
+  if (!kayitlar.length){
+    el.innerHTML = `<tbody><tr><td class="bos">${planMi ? "Bu ay bekleyen bir şey yok." : "Bu aya henüz kayıt girilmedi."}</td></tr></tbody>`;
+    return;
+  }
+  const bas = `<thead><tr>
+    <th style="width:110px">Tarih</th><th>Tür</th><th class="gizle">Kimden / kime</th>
+    <th class="gizle">Açıklama</th><th class="sag" style="width:130px">Tutar</th><th></th>
+  </tr></thead>`;
+  const govde = kayitlar.map(h => h.id === duzenlenen ? duzenlemeSatiri(h) : normalSatir(h, planMi)).join("");
+  el.innerHTML = bas + `<tbody>${govde}</tbody>`;
+}
+
+function normalSatir(h, planMi){
+  const t = TURLER[h.tur] || { ad:h.tur, yon:"notr" };
+  const im = t.yon==="cikti" ? "−" : t.yon==="girdi" ? "+" : "";
+  const renk = t.yon==="cikti" ? "kotu" : t.yon==="girdi" ? "iyi" : "";
+  return `<tr class="${planMi?"plan":""}">
+    <td>${tarihTR(h.tarih)}</td>
+    <td>${t.ad}${planMi?' <span class="rozet bekliyor">bekliyor</span>':""}</td>
+    <td class="gizle">${kacir(h.kisi||"—")}</td>
+    <td class="gizle alt">${["hakedis","maas","mahsup"].includes(h.tur) && maasAyi(h) !== (h.tarih||"").slice(0,7)
+        ? `<span class="rozet">${ayAdi(maasAyi(h))} maaşı</span> ` : ""}${kacir(h.aciklama||"—")}${
+        h.not ? `<div style="color:var(--iyi);font-size:12px;margin-top:2px">✓ ${kacir(h.not)}</div>` : ""}</td>
+    <td class="sag para ${renk}" style="font-weight:600">${im}${TL(h.tutar)}</td>
+    <td class="islem">
+      ${planMi?`<button class="mini tamam" data-oldu="${h.id}" title="Gerçekleşti">✓</button>`:""}
+      <button class="mini" data-duzenle="${h.id}" title="Düzenle">✎</button>
+      <button class="mini sil" data-sil="${h.id}" title="Sil">✕</button>
+    </td>
+  </tr>`;
+}
+
+/**
+ * Satır içi düzenleme.
+ *
+ * ⚠️ ÖNCEKİ SÜRÜMÜN HATASI: düzenle denince kayıt SİLİNİP ekleme formuna
+ * taşınıyordu. Tarihi düzeltip kaydetmeden başka yere geçersen kayıt
+ * uçuyordu; tarihi başka aya çevirince de gözden kayboluyordu. Artık kayıt
+ * yerinde duruyor, Kaydet'e basılmadan hiçbir şey değişmiyor, Vazgeç her
+ * şeyi eski hâline bırakıyor.
+ */
+function duzenlemeSatiri(h){
+  const secenek = Object.entries(TURLER)
+    .map(([k,t])=>`<option value="${k}" ${k===h.tur?"selected":""}>${t.ad}</option>`).join("");
+  return `<tr class="duzenleniyor"><td colspan="6" style="padding:12px 10px">
+    <form class="ekle" data-kaydet="${h.id}" style="margin:0;padding:0;border:none">
+      <label>Tarih<input type="date" name="tarih" value="${h.tarih||""}" required></label>
+      <label>Tür<select name="tur">${secenek}</select></label>
+      <label>Kimden / kime<input type="text" name="kisi" list="kisiler" value="${kacir(h.kisi||"")}"></label>
+      <label>Tutar<input type="text" name="tutar" class="tutar" inputmode="decimal" value="${duzenlemeIcin(h.tutar)}" required></label>
+      ${["hakedis","maas","mahsup"].includes(h.tur) ? `<label>Hangi ayın maaşı<select name="maasAy">${
+        (()=>{const a=[];for(let i=-6;i<=2;i++)a.push(ayKaydir(donem,i));
+          const se=maasAyi(h); if(!a.includes(se))a.unshift(se);
+          return a.map(x=>`<option value="${x}" ${x===se?"selected":""}>${ayAdi(x)}</option>`).join("");})()
+      }</select></label>` : ""}
+      <div class="satirdugme">
+        <button class="dugme kucuk" type="submit">Kaydet</button>
+        <button class="dugme sade kucuk" type="button" data-vazgec="1">Vazgeç</button>
+      </div>
+      <label class="tam">Açıklama<input type="text" name="aciklama" value="${kacir(h.aciklama||"")}"></label>
+      <label class="tam">Not — sonradan eklediğin<input type="text" name="not"
+        value="${kacir(h.not||"")}" placeholder="örn. halledildi, konuşuldu, karşılığı verildi"></label>
+      <label class="onay tam"><input type="checkbox" name="planli" ${h.planli?"checked":""}> Bekleyen (henüz olmadı)</label>
+    </form>
+  </td></tr>`;
+}
+
+/** Ayar kutularını doldurur, günlük ücreti ve dönem düzenini yazar. */
+function cizAyarlar(o){
+  const a = veri.ayarlar || VARSAYILAN_AYARLAR;
+  const f = document.getElementById("f-ayarlar");
+  if (document.activeElement?.form !== f){
+    f.aylikMaas.value = a.aylikMaas ? duzenlemeIcin(a.aylikMaas) : "";
+    f.isGunu.value = a.isGunu || 22;
+    f.odemeGunu.value = a.odemeGunu || "";
+  }
+
+  const gunluk = a.aylikMaas && a.isGunu ? a.aylikMaas / a.isGunu : 0;
+  const parca = [];
+  if (gunluk) parca.push(`Günlük kazancım <strong style="color:var(--yazi)">${TL(gunluk)}</strong> (${TL(a.aylikMaas)} ÷ ${a.isGunu} gün)`);
+  if (a.odemeGunu) parca.push(`Maaş her ayın <strong style="color:var(--yazi)">${a.odemeGunu}</strong>'unda ödenmeli.`);
+  document.getElementById("ayar-ozet").innerHTML = parca.join("<br>");
+
+  /* Hak ediş kutusu: SADECE bu döneme hiç hak ediş girilmemişse çıkar ve
+     tek tıkla ekler. Karşılaştırma/uyarı YOK — kullanıcı geri bildirimi: *"böyle uyarı
+     veriyor bilgilendirme amaçlı, buna gerek yok."* Haklı: ne aldığını
+     kendisi biliyor, defterin işi ona akıl vermek değil kayıt tutmak. */
+  const ip = document.getElementById("hakedis-ipucu");
+  const { toplamlar } = calismaOzeti(donem);
+  const gun = (toplamlar["calisma|gün"] || 0);
+  if (gunluk && gun > 0 && o.hakedis === 0){
+    const olmasiGereken = Math.round(gunluk * gun * 100) / 100;
+    ip.classList.remove("gizli");
+    ip.innerHTML = `Bu dönem <strong style="color:var(--yazi)">${gun} gün</strong> çalışma kaydı var.
+      <button class="dugme kucuk" id="b-hakedis" style="margin-left:8px">${TL(olmasiGereken)} hak ediş ekle</button>`;
+    document.getElementById("b-hakedis").onclick = ()=>{
+      const s2 = donemSinirlari(donem);
+      veri.hareketler.push({ id:yeniId(), tarih:s2.ilk, tur:"hakedis", kisi:"",
+        tutar:olmasiGereken, aciklama:`${gun} gün × ${TL(gunluk)}`, planli:false, maasAy:donem });
+      kaydet();
+    };
+  } else ip.classList.add("gizli");
+}
+
+/** Filtreyi uygular. Boş filtre = her şey. */
+function suz(kayitlar){
+  return kayitlar.filter(h => {
+    if (filtre.tur){
+      if (filtre.tur === "__girdi" && TURLER[h.tur]?.yon !== "girdi") return false;
+      if (filtre.tur === "__cikti" && TURLER[h.tur]?.yon !== "cikti") return false;
+      if (!filtre.tur.startsWith("__") && h.tur !== filtre.tur) return false;
+    }
+    if (filtre.kisi && String(h.kisi||"").trim() !== filtre.kisi) return false;
+    if (filtre.ara){
+      const metin = `${h.aciklama||""} ${h.kisi||""} ${TURLER[h.tur]?.ad||""}`.toLocaleLowerCase("tr-TR");
+      if (!metin.includes(filtre.ara.toLocaleLowerCase("tr-TR"))) return false;
+    }
+    return true;
+  });
+}
+
+function cizFiltre(hepsi, suzulmus){
+  const fTur = document.getElementById("f-tur");
+  const fKisi = document.getElementById("f-kisi");
+  const acik = !!(filtre.tur || filtre.kisi || filtre.ara);
+
+  // Seçenekler — yalnız bu ayda GERÇEKTEN geçen türler, boş seçenek olmasın.
+  const gecenTurler = [...new Set(hepsi.map(h=>h.tur))];
+  if (document.activeElement !== fTur)
+    fTur.innerHTML = `<option value="">Tüm hareketler</option>
+      <option value="__girdi">↓ Sadece girenler</option>
+      <option value="__cikti">↑ Sadece çıkanlar (giderler)</option>`
+      + gecenTurler.map(t=>`<option value="${t}">${TURLER[t]?.ad||t}</option>`).join("");
+  fTur.value = filtre.tur;
+
+  const gecenKisiler = [...new Set(hepsi.map(h=>String(h.kisi||"").trim()).filter(Boolean))];
+  if (document.activeElement !== fKisi)
+    fKisi.innerHTML = `<option value="">Herkes</option>`
+      + gecenKisiler.map(k=>`<option value="${kacir(k)}">${kacir(k)}</option>`).join("");
+  fKisi.value = filtre.kisi;
+  fKisi.classList.toggle("gizli", gecenKisiler.length === 0);
+
+  document.getElementById("f-temizle").classList.toggle("gizli", !acik);
+  fTur.closest(".blok").classList.toggle("filtreli", acik);
+
+  const uy = document.getElementById("filtre-uyari");
+  const gizlenen = hepsi.length - suzulmus.length;
+  if (acik){
+    const t = topla(suzulmus);
+    uy.classList.remove("gizli");
+    uy.innerHTML = `<span class="uyari">Filtre açık</span> — ${suzulmus.length} kayıt gösteriliyor`
+      + (gizlenen ? `, <strong>${gizlenen}</strong> kayıt gizli` : "")
+      + `. Toplam: <strong style="color:var(--yazi)">${TL(t)}</strong>`;
+  } else uy.classList.add("gizli");
+}
+
+function cizMaasTakibi(){
+  const liste = maasTakibi();
+  const el = document.getElementById("t-maas");
+  el.innerHTML = liste.length
+    ? `<thead><tr><th>Ay</th><th class="sag">Hak ediş</th><th class="sag">Ödenen</th>
+         <th class="sag">Kalan</th><th class="gizle">Ödemeler</th></tr></thead>
+       <tbody>${liste.map(k=>{
+         const kapali = Math.abs(k.kalan) < 0.005;
+         const dokum = k.odemeler.length
+           ? [...k.odemeler].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||""))
+               .map(o=>`${tarihTR(o.tarih).slice(0,5)} ${TL(o.tutar).replace(",00 TL"," TL")}`).join(" · ")
+           : "—";
+         return `<tr>
+           <td style="font-weight:600">${ayAdi(k.ay)}</td>
+           <td class="sag para">${TL(k.hakedis)}</td>
+           <td class="sag para iyi">${TL(k.odenen)}${k.mahsup?`<div class="alt">mahsup ${TL(k.mahsup)}</div>`:""}</td>
+           <td class="sag para ${kapali?"":"kotu"}" style="font-weight:700">${kapali?"—":TL(k.kalan)}</td>
+           <td class="gizle alt">${dokum}${k.planli?`<div class="uyari">${TL(k.planli)} bekleniyor</div>`:""}</td>
+         </tr>`;
+       }).join("")}</tbody>`
+    : `<tbody><tr><td class="bos">Henüz maaş kaydı yok. Hak edişi ve aldığın ödemeleri girince burada ay ay görürsün.</td></tr></tbody>`;
+
+  /* Ödeme günü geçmiş ama kapanmamış aylar için uyarı. */
+  const g = veri.ayarlar?.odemeGunu || 0;
+  const uy = document.getElementById("maas-uyari");
+  if (!g){ uy.classList.add("gizli"); return; }
+  const bugunTarih = bugun();
+  const geciken = liste.filter(k => {
+    if (k.kalan <= 0.005) return false;
+    const vade = `${ayKaydir(k.ay,1)}-${String(g).padStart(2,"0")}`;
+    return bugunTarih > vade;
+  });
+  if (geciken.length){
+    uy.classList.remove("gizli");
+    uy.innerHTML = geciken.map(k =>
+      `<span class="kotu">⚠</span> <strong>${ayAdi(k.ay)}</strong> maaşı ayın ${g}'unda ödenmeliydi —
+       hâlâ <strong class="kotu">${TL(k.kalan)}</strong> bekliyor.`).join("<br>");
+  } else uy.classList.add("gizli");
+}
+
+function cizCalisma(){
+  const { kayit } = calismaOzeti(donem);
+  const cumle = calismaCumlesi(donem);
+  document.getElementById("calisma-ozet").innerHTML = cumle
+    ? `Bu ay: <strong style="color:var(--yazi)">${cumle}</strong>`
+    : "Bu aya çalışma kaydı girilmedi.";
+
+  const el = document.getElementById("t-calisma");
+  el.innerHTML = kayit.length
+    ? `<thead><tr><th style="width:110px">Tarih</th><th>Ne</th>
+        <th class="gizle">İş / açıklama</th><th class="sag" style="width:110px">Miktar</th><th></th></tr></thead>
+       <tbody>${[...kayit].sort((a,b)=>(b.tarih||"").localeCompare(a.tarih||"")).map(c=>{
+         if (c.id === duzenlenenCalisma) return calismaDuzenlemeSatiri(c);
+         const t = CALISMA_TURLERI[c.tur] || { ad:c.tur, birim:"" };
+         const izinMi = ["izin","rapor","tatil"].includes(c.tur);
+         return `<tr>
+           <td>${tarihTR(c.tarih)}</td>
+           <td>${t.ad}</td>
+           <td class="gizle alt">${kacir(c.aciklama||"—")}${
+             c.not ? `<div style="color:var(--iyi);font-size:12px;margin-top:2px">✓ ${kacir(c.not)}</div>` : ""}</td>
+           <td class="sag para ${izinMi?"uyari":""}" style="font-weight:600">${
+             paraOku(c.miktar).toLocaleString("tr-TR",{maximumFractionDigits:2})} ${c.birim||t.birim}</td>
+           <td class="islem">
+             <button class="mini" data-duzenle-calisma="${c.id}" title="Düzenle">✎</button>
+             <button class="mini sil sil-calisma" data-id="${c.id}" title="Sil">✕</button>
+           </td>
+         </tr>`;
+       }).join("")}</tbody>`
+    : `<tbody><tr><td class="bos">Henüz kayıt yok.</td></tr></tbody>`;
+}
+
+/** Çalışma kaydının satır içi düzenlemesi — hareketlerdekiyle aynı mantık:
+    kayıt yerinde durur, Kaydet'e basılmadan hiçbir şey değişmez. */
+function calismaDuzenlemeSatiri(c){
+  const s = donemSinirlari(donem);
+  const turSecenek = Object.entries(CALISMA_TURLERI)
+    .map(([k,t])=>`<option value="${k}" ${k===c.tur?"selected":""}>${t.ad}</option>`).join("");
+  const birim = c.birim || CALISMA_TURLERI[c.tur]?.birim || "gün";
+  const birimSecenek = ["gün","saat"]
+    .map(b=>`<option value="${b}" ${b===birim?"selected":""}>${b}</option>`).join("");
+  return `<tr class="duzenleniyor"><td colspan="5" style="padding:12px 10px">
+    <form class="ekle" data-kaydet-calisma="${c.id}"
+          style="margin:0;padding:0;border:none;grid-template-columns:150px 170px 110px 120px 1fr auto">
+      <label>Tarih<input type="date" name="tarih" value="${c.tarih||""}" min="${s.ilk}" max="${s.son}" required></label>
+      <label>Ne<select name="tur">${turSecenek}</select></label>
+      <label>Miktar<input type="text" name="miktar" class="tutar" inputmode="decimal" value="${duzenlemeIcin(c.miktar)}" required></label>
+      <label>Birim<select name="birim">${birimSecenek}</select></label>
+      <label>İş / açıklama<input type="text" name="aciklama" value="${kacir(c.aciklama||"")}"></label>
+      <div class="satirdugme">
+        <button class="dugme kucuk" type="submit">Kaydet</button>
+        <button class="dugme sade kucuk" type="button" data-vazgec-calisma="1">Vazgeç</button>
+      </div>
+      <label class="tam">Not<input type="text" name="not" value="${kacir(c.not||"")}"
+        placeholder="örn. onaylandı, karşılığı ödendi"></label>
+    </form>
+  </td></tr>`;
+}
+
+/** Düzenli kaydın satır içi düzenlemesi. */
+function duzenliDuzenlemeSatiri(d){
+  const secenek = Object.entries(TURLER)
+    .map(([k,t])=>`<option value="${k}" ${k===d.tur?"selected":""}>${t.ad}</option>`).join("");
+  return `<tr class="duzenleniyor"><td colspan="3" style="padding:12px 10px">
+    <form class="ekle" data-kaydet-duzenli="${d.id}"
+          style="margin:0;padding:0;border:none;grid-template-columns:1fr 1fr">
+      <label class="tam">Adı<input type="text" name="ad" value="${kacir(d.ad)}" required></label>
+      <label class="tam">Tür<select name="tur">${secenek}</select></label>
+      <label>Tutar<input type="text" name="tutar" class="tutar" inputmode="decimal" value="${duzenlemeIcin(d.tutar)}" required></label>
+      <label>Ayın kaçı<input type="number" name="gun" min="1" max="31" value="${d.gun||1}" required></label>
+      <div class="satirdugme tam">
+        <button class="dugme kucuk" type="submit">Kaydet</button>
+        <button class="dugme sade kucuk" type="button" data-vazgec-duzenli="1">Vazgeç</button>
+      </div>
+    </form>
+  </td></tr>`;
+}
+
+/* ── Kutuların detayı ─────────────────────────────────────── */
+/* Kullanıcı isteği: "yukardaki kutulara tıkladığımda bana güzel bir özet çıksın."
+   Rakamın nereden geldiğini görmeden ona güvenmek zor. */
+let acikDetay = null;
+
+/* `toplamGoster`: kişi detayında KAPALI. Orada satırların ham toplamı
+   anlamsız — biri borç ekler, biri düşer, biri hiç etkilemez (af, şirket
+   verdi). Kişinin gerçek bakiyesi zaten üstte yazıyor. */
+function detayTablo(kayitlar, bosMesaj, toplamGoster = true){
+  if (!kayitlar.length) return `<div class="bos">${bosMesaj}</div>`;
+  return `<table><thead><tr>
+      <th style="width:110px">Tarih</th><th>Tür</th><th>Kimden / kime</th>
+      <th>Açıklama</th><th class="sag" style="width:130px">Tutar</th></tr></thead>
+    <tbody>${[...kayitlar].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||"")).map(h=>{
+      const t = TURLER[h.tur]||{ad:h.tur,yon:"notr"};
+      const im = t.yon==="cikti"?"−":t.yon==="girdi"?"+":"";
+      const renk = t.yon==="cikti"?"kotu":t.yon==="girdi"?"iyi":"";
+      return `<tr><td>${tarihTR(h.tarih)}</td><td>${t.ad}</td>
+        <td>${kacir(h.kisi||"—")}</td><td class="alt">${kacir(h.aciklama||"—")}</td>
+        <td class="sag para ${renk}" style="font-weight:600">${im}${TL(h.tutar)}</td></tr>`;
+    }).join("")}
+    ${toplamGoster ? `<tr><td colspan="4" style="font-weight:600">Toplam</td>
+        <td class="sag para" style="font-weight:700">${TL(topla(kayitlar))}</td></tr>` : ""}
+    </tbody></table>`;
+}
+
+function detayCiz(hangi){
+  const o = ozet(donem), kd = kisiler();
+  const blok = document.getElementById("detay");
+  const bas = document.getElementById("detay-baslik");
+  const ic = document.getElementById("detay-icerik");
+  blok.classList.remove("gizli");
+  document.querySelectorAll(".oz.tikla").forEach(k =>
+    k.classList.toggle("acik", k.dataset.detay === hangi));
+
+  if (hangi === "maas"){
+    bas.textContent = `Maaş hesabı — ${donemAdi(donem)}`;
+    const ilgili = o.olan.filter(h => ["hakedis","maas","mahsup"].includes(h.tur));
+    ic.innerHTML = `<div class="alt" style="margin-bottom:10px">
+        Hak ettiğin maaştan, aldıkların ve maaşından kesilen mahsuplar düşülür.
+        Kalan, işverenden bu döneme ait alacağındır.</div>
+      ${detayTablo(ilgili, "Bu ay maaşla ilgili kayıt yok.")}
+      <div style="margin-top:12px;font-weight:600">
+        ${TL(o.hakedis)} hak ediş − ${TL(o.maasAlinan)} alınan${o.mahsup?` − ${TL(o.mahsup)} mahsup`:""}
+        = <span class="${o.maasKalan>0.005?"iyi":""}">${TL(o.maasKalan)}</span> kalan</div>`;
+  }
+
+  else if (hangi === "girdi" || hangi === "cikti"){
+    const yon = hangi === "girdi" ? "girdi" : "cikti";
+    bas.textContent = (hangi==="girdi" ? "Bu dönem giren para — " : "Bu dönem çıkan para — ") + donemAdi(donem);
+    ic.innerHTML = detayTablo(o.olan.filter(h => TURLER[h.tur]?.yon === yon),
+      hangi==="girdi" ? "Bu ay para girişi yok." : "Bu ay para çıkışı yok.");
+  }
+
+  else if (hangi === "borc"){
+    bas.textContent = `Kime ne kadar borcum var — ${donemAdi(donem)} sonu`;
+    if (!kd.length){ ic.innerHTML = `<div class="bos">Kimseye borcun görünmüyor.</div>`; }
+    else {
+      ic.innerHTML = `<div class="alt" style="margin-bottom:12px">
+          Her kişi için: <strong>devir</strong> (önceki dönemlerden kalan) +
+          <strong>bu dönemin hareketleri</strong> = <strong>dönem sonu kalan</strong>.
+          Aşağıdaki tablo yalnız <strong>${donemAdi(donem)}</strong> kayıtlarıdır.
+          “Şirket verdi” geri ödemesiz olduğu için borca girmez ama listede görünür.
+        </div>` + kd.map(k => `<div style="margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px">
+            <div style="font-size:16px;font-weight:600">${kacir(k.ad)}</div>
+            <div style="text-align:right">
+              <div class="para ${k.kalan>0.005?"kotu":"iyi"}" style="font-weight:700;font-size:16px">${TL(Math.abs(k.kalan))}</div>
+              <div class="alt" style="font-size:11px">${
+                k.kalan>0.005 ? "borcum" : k.kalan<-0.005 ? "o bana borçlu" : "kapalı"}</div>
+            </div>
+          </div>
+          <div class="alt" style="margin-bottom:8px">
+            devir ${TL(k.devir)} ${k.donem>=0?"+":"−"} bu dönem ${TL(Math.abs(k.donem))} = ${TL(k.kalan)}
+          </div>
+          ${detayTablo(k.kayitlar, "Bu dönemde kayıt yok.", false)}
+        </div>`).join("");
+    }
+  }
+
+  else if (hangi === "cep"){
+    const c = cepDurumu();
+    bas.textContent = "Cebimde kalan — tüm dönemler";
+    const olan = veri.hareketler.filter(h=>!h.planli);
+    ic.innerHTML = `<div class="alt" style="margin-bottom:10px">
+        Deftere girdiğin <strong>bütün dönemlerin</strong> giren ve çıkan parası.
+        Buraya yazmadığın harcamalar (market, yakıt…) hesaba katılmaz —
+        rakam ancak girdiğin kadar doğrudur.</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;font-weight:600">
+        <div>Giren <span class="para iyi">${TL(c.girdi)}</span></div>
+        <div>Çıkan <span class="para kotu">${TL(c.cikti)}</span></div>
+        <div>Kalan <span class="para ${c.kalan>=0?"iyi":"kotu"}">${TL(c.kalan)}</span></div>
+      </div>
+      ${detayTablo(olan.filter(h => ["girdi","cikti"].includes(TURLER[h.tur]?.yon)), "Henüz kayıt yok.")}`;
+  }
+}
+
+/* ── Rapor ────────────────────────────────────────────────── */
+/**
+ * Rapor — Google Keep'e yapıştırmalık, A'dan Z'ye açıklamalı.
+ *
+ * Kullanıcı isteği: *"raporları notları alırken çok güzel şekilde A'dan Z'ye kadar her
+ * şey açıklamaları ile birlikte alalım."* Metin tek başına okunduğunda
+ * anlaşılmalı: rakamın ne olduğunu değil, NEDEN o olduğunu da söylemeli.
+ */
+function rapor(){
+  const o = ozet(donem), kd = kisiler(), c = cepDurumu(), S = [];
+  const cizgi = (b) => { S.push("", b, "─".repeat(Math.max(20, b.length))); };
+  const satir = (h) => `  ${tarihTR(h.tarih)}  ${TL(h.tutar).padStart(14)}  ${TURLER[h.tur]?.ad||h.tur}`
+      + (h.kisi ? ` — ${h.kisi}` : "") + (h.aciklama ? `  (${h.aciklama})` : "")
+      + (h.not ? `\n        ✓ ${h.not}` : "");
+
+  S.push("═".repeat(52));
+  S.push(`  FİNANS DEFTERİM · ${donemAdi(donem)}`);
+  S.push(`  ${new Date().toLocaleDateString("tr-TR")} tarihinde alındı`);
+  S.push("═".repeat(52));
+
+  /* 1 — DURUM ÖZETİ */
+  cizgi("1) BU AY NE OLDU");
+  if (o.hakedis){
+    S.push(`  Bu ay hak ettiğim maaş      ${TL(o.hakedis)}`);
+    S.push(`  İşverenden aldığım          ${TL(o.maasAlinan)}`);
+    if (o.mahsup) S.push(`  Maaşımdan kesilen (mahsup)  ${TL(o.mahsup)}`);
+    S.push(`  ─────────────────────────────────────`);
+    S.push(`  BU AYDAN KALAN ALACAĞIM     ${TL(o.maasKalan)}`);
+    S.push("");
+    S.push(o.maasKalan > 0.005
+      ? `  Yani işveren bu ay için bana ${TL(o.maasKalan)} daha borçlu.`
+      : Math.abs(o.maasKalan) < 0.005
+        ? "  Bu ayın maaş hesabı kapandı, işverenden alacağım kalmadı."
+        : `  Bu ay hak ettiğimden ${TL(-o.maasKalan)} fazla almışım.`);
+  } else {
+    S.push("  Bu aya maaş hak edişi girilmedi.");
+    S.push(`  Giren para  ${TL(o.girdi)}`);
+    S.push(`  Çıkan para  ${TL(o.cikti)}`);
+    S.push(`  Fark        ${TL(o.girdi - o.cikti)}`);
+  }
+
+  /* 2 — BEKLEYENLER */
+  if (o.plan.length){
+    cizgi("2) BEKLEYENLER — henüz gerçekleşmedi");
+    S.push("  Bunlar plan; hesaba dahil DEĞİL. Gerçekleşince deftere işaretlenecek.");
+    S.push("");
+    for (const h of [...o.plan].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||""))) S.push(satir(h));
+    S.push("");
+    if (o.planGirdi) S.push(`  Gelmesi beklenen : ${TL(o.planGirdi)}`);
+    if (o.planCikti) S.push(`  Ödemem gereken   : ${TL(o.planCikti)}`);
+  }
+
+  /* 3 — HAREKETLER */
+  cizgi(`${o.plan.length ? 3 : 2}) BU AYIN BÜTÜN HAREKETLERİ`);
+  if (!o.olan.length) S.push("  Bu aya kayıt girilmedi.");
+  else for (const h of [...o.olan].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||""))) S.push(satir(h));
+
+  /* 4 — KİŞİ HESAPLARI */
+  const n = (o.plan.length ? 4 : 3);
+  cizgi(`${n}) KİME NE KADAR BORÇLUYUM  (${donemAdi(donem)} sonu)`);
+  if (!kd.length) S.push("  Bu dönem sonunda kimseye borcum görünmüyor.");
+  else {
+    S.push("  Devir = önceki dönemlerden kalan · Bu dönem = bu ayki hareketler");
+    S.push("");
+    for (const k of kd){
+      S.push(`  ▸ ${k.ad}:  ${TL(Math.abs(k.kalan))}`
+        + (k.kalan>0.005 ? "  (borcum)" : k.kalan<-0.005 ? "  (o bana borçlu)" : "  (kapalı)"));
+      S.push(`      devir (önceki dönemlerden)   ${TL(k.devir)}`);
+      S.push(`      bu dönem                     ${k.donem>=0?"+":"−"}${TL(Math.abs(k.donem))}`);
+      for (const h of [...k.kayitlar].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||""))){
+        const e = borcEtkisi(h);
+        const im = e>0 ? "+" : e<0 ? "−" : " ";
+        S.push(`         ${tarihTR(h.tarih)}  ${im}${TL(Math.abs(paraOku(h.tutar)))}  ${TURLER[h.tur]?.ad||h.tur}`
+          + (e===0 ? "  (borca girmez)" : "") + (h.aciklama?`  (${h.aciklama})`:""));
+      }
+      S.push(`      ─────────────────────────────`);
+      S.push(`      DÖNEM SONU KALAN             ${TL(k.kalan)}`);
+      S.push("");
+    }
+    S.push(`  TOPLAM BORCUM: ${TL(kd.reduce((t,k)=>t+k.kalan,0))}`);
+  }
+
+  /* 5 — ŞİRKET */
+  const sd = sirketDurumu(donem);
+  const alacak = sd.kalan;
+  if (Math.abs(alacak) > 0.005 || sd.kisiden.length || sd.verdi.length){
+    cizgi(`${n+1}) ŞİRKET TARAFI  (${donemAdi(donem)})`);
+    if (Math.abs(alacak) > 0.005){
+      S.push(`  ŞİRKETTEN ALACAĞIM (bu dönem): ${TL(alacak)}`);
+      for (const h of sd.kayitlar)
+        S.push(`       ${tarihTR(h.tarih)}  ${TL(h.tutar)}  ${h.aciklama||"—"}`);
+      S.push("    Kendi paramla şirket adına ödediklerim; kimseye bağlamadığım için");
+      S.push("    doğrudan şirketin bana borcu.");
+      S.push("");
+    }
+    if (sd.kisiden.length){
+      S.push(`  Cebimden ödeyip kişiden düştüklerim: ${TL(topla(sd.kisiden))}`);
+      for (const h of sd.kisiden)
+        S.push(`     ${tarihTR(h.tarih)}  ${TL(h.tutar)}  ${h.kisi}${h.aciklama?`  (${h.aciklama})`:""}`);
+      S.push("    Bunlar ilgili kişinin borcundan düşüldü, ayrıca alacak yazılmadı.");
+      S.push("");
+    }
+    if (sd.verdi.length){
+      S.push(`  Şirketin verdiği (geri ödemesiz): ${TL(topla(sd.verdi))}`);
+      for (const h of sd.verdi)
+        S.push(`     ${tarihTR(h.tarih)}  ${TL(h.tutar)}  ${h.kisi||"—"}${h.aciklama?`  (${h.aciklama})`:""}`);
+      S.push("    Borç değil — şirketin parası şirkete harcandı. Kayıt olarak duruyor");
+      S.push("    ki neyin nereye gittiği kaybolmasın.");
+    }
+  }
+
+  /* 6 — CEP */
+  cizgi(`${n+2}) CEBİMDE KALAN  (tüm dönemler)`);
+  S.push(`  Giren  ${TL(c.girdi)}`);
+  S.push(`  Çıkan  ${TL(c.cikti)}`);
+  S.push(`  KALAN  ${TL(c.kalan)}`);
+  S.push("");
+  S.push("  Not: yalnız deftere girdiğim hareketleri sayar. Buraya yazmadığım");
+  S.push("  harcamalar (market, yakıt…) hesaba katılmaz.");
+
+  /* 6b — ÇALIŞMA */
+  const cOz = calismaOzeti(donem);
+  if (cOz.kayit.length){
+    cizgi(`${n+3}) ÇALIŞMA · MESAİ · İZİN`);
+    S.push(`  Özet: ${calismaCumlesi(donem)}`);
+    S.push("");
+    for (const c of [...cOz.kayit].sort((a,b)=>(a.tarih||"").localeCompare(b.tarih||""))){
+      const t = CALISMA_TURLERI[c.tur]||{ad:c.tur,birim:""};
+      S.push(`  ${tarihTR(c.tarih)}  ${String(paraOku(c.miktar)).padStart(5)} ${c.birim||t.birim}  ${t.ad}`
+        + (c.aciklama ? `  (${c.aciklama})` : ""));
+    }
+  }
+
+  /* 7 — NOT */
+  const not = (veri.notlar[donem]||"").trim();
+  if (not){ cizgi(`${n+4}) BU AYIN NOTU`); for (const l of not.split("\n")) S.push("  " + l); }
+
+  /* 8 — DÜZENLİ */
+  if (veri.duzenli.length){
+    cizgi(`${n + (not?5:4)}) HER AY TEKRAR EDENLER`);
+    for (const d of veri.duzenli)
+      S.push(`  ${d.ad} — ${TL(d.tutar)} — her ayın ${d.gun}'i — ${TURLER[d.tur]?.ad||d.tur}`);
+  }
+
+  S.push("");
+  S.push("═".repeat(52));
+  return S.join("\n");
+}
+
+/* ── Olaylar ──────────────────────────────────────────────── */
+for (const id of ["tur-sec","tur-sec-2"])
+  document.getElementById(id).innerHTML =
+    Object.entries(TURLER).map(([k,t])=>`<option value="${k}">${t.ad}</option>`).join("");
+
+// Özet kutuları → detay
+document.querySelectorAll(".oz.tikla").forEach(k => {
+  k.onclick = () => {
+    acikDetay = (acikDetay === k.dataset.detay) ? null : k.dataset.detay;
+    if (acikDetay){ detayCiz(acikDetay); document.getElementById("detay").scrollIntoView({behavior:"smooth",block:"nearest"}); }
+    else detayKapat();
+  };
+});
+function detayKapat(){
+  acikDetay = null;
+  document.getElementById("detay").classList.add("gizli");
+  document.querySelectorAll(".oz.tikla").forEach(k => k.classList.remove("acik"));
+}
+document.getElementById("detay-kapat").onclick = detayKapat;
+
+const donemDegistir = (yeni)=>{ duzenlenen=null; duzenlenenCalisma=null; duzenlenenDuzenli=null; donem=yeni; ciz(); };
+document.getElementById("b-onceki").onclick  = ()=>donemDegistir(ayKaydir(donem,-1));
+document.getElementById("b-sonraki").onclick = ()=>donemDegistir(ayKaydir(donem,+1));
+document.getElementById("b-bugun").onclick   = ()=>donemDegistir(ayKodu(new Date()));
+
+// Kişi alanı yalnız gereken türlerde
+const turSec = document.getElementById("tur-sec");
+/** "Hangi ayın maaşı" seçicisi — yalnız maaş/hak ediş/mahsup türlerinde çıkar. */
+function maasAyGorunur(){
+  const l = document.getElementById("l-maasay");
+  const goster = ["hakedis","maas","mahsup"].includes(turSec.value);
+  l.classList.toggle("gizli", !goster);
+  if (!goster) return;
+  const sec = document.getElementById("maasay-sec");
+  const onceki = sec.value;
+  // İçinde bulunduğun dönem ve çevresi — geç ödeme genelde 1-2 ay geriye ait.
+  const aylar = [];
+  for (let i = -4; i <= 1; i++) aylar.push(ayKaydir(donem, i));
+  sec.innerHTML = aylar.map(a =>
+    `<option value="${a}">${ayAdi(a)}${a===donem?" (bu ay)":""}</option>`).join("");
+  sec.value = aylar.includes(onceki) ? onceki : donem;
+}
+
+function kisiGorunur(){
+  const l = document.getElementById("l-kisi");
+  l.classList.toggle("gizli", !TURLER[turSec.value]?.kisi);
+  // "Şirket için cebimden" derken sorulan şey farklı: kimin hesabından düşsün.
+  const etiket = turSec.value === "cepten" ? "Kimin hesabından düşsün" : "Kimden / kime";
+  l.childNodes[0].nodeValue = etiket;
+}
+turSec.onchange = ()=>{ kisiGorunur(); maasAyGorunur(); };
+
+// Yeni hareket
+document.getElementById("f-ekle").onsubmit = (e)=>{
+  e.preventDefault();
+  const f=e.target, d=Object.fromEntries(new FormData(f));
+  const tutar = paraOku(d.tutar);
+  if (!(tutar>0)) { alert("Geçerli bir tutar gir."); return; }
+  const kayit = { id:yeniId(), tarih:d.tarih, tur:d.tur, kisi:(d.kisi||"").trim(),
+    tutar, aciklama:(d.aciklama||"").trim(), planli:!!d.planli };
+  if (["hakedis","maas","mahsup"].includes(d.tur) && d.maasAy) kayit.maasAy = d.maasAy;
+  veri.hareketler.push(kayit);
+  // Tarih ve tür kalsın — arka arkaya kayıt girmek kolay olsun.
+  f.tutar.value=""; f.aciklama.value=""; f.kisi.value=""; f.planli.checked=false;
+  kaydet(); f.tutar.focus();
+};
+
+// Filtre
+document.getElementById("f-tur").onchange  = (e)=>{ filtre.tur = e.target.value; ciz(); };
+document.getElementById("f-kisi").onchange = (e)=>{ filtre.kisi = e.target.value; ciz(); };
+let araZaman;
+document.getElementById("f-ara").oninput = (e)=>{
+  clearTimeout(araZaman); const v = e.target.value;
+  araZaman = setTimeout(()=>{ filtre.ara = v.trim(); ciz(); }, 250);
+};
+document.getElementById("f-temizle").onclick = ()=>{
+  filtre.tur = ""; filtre.kisi = ""; filtre.ara = "";
+  document.getElementById("f-ara").value = "";
+  ciz();
+};
+
+/* ── Bölümleri aç/kapa ────────────────────────────────────── */
+const KAPALI_ANAHTAR = ANAHTAR + "-kapali";
+function bolumleriKur(){
+  let kapali = [];
+  try { kapali = JSON.parse(localStorage.getItem(KAPALI_ANAHTAR) || "[]"); } catch(_){}
+  document.querySelectorAll(".blok > h2").forEach((b) => {
+    const blok = b.parentElement;
+    const ad = (b.id || b.textContent).trim().slice(0, 40);
+    blok.dataset.bolum = ad;
+    if (kapali.includes(ad)) blok.classList.add("kapali");
+    b.onclick = () => {
+      blok.classList.toggle("kapali");
+      const simdi = [...document.querySelectorAll(".blok.kapali")].map(x => x.dataset.bolum);
+      try { localStorage.setItem(KAPALI_ANAHTAR, JSON.stringify(simdi)); } catch(_){}
+    };
+  });
+}
+
+// Ayarlar
+document.getElementById("f-ayarlar").onsubmit = (e)=>{
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  veri.ayarlar = {
+    aylikMaas: paraOku(d.aylikMaas),
+    isGunu: Math.min(31, Math.max(1, Number(d.isGunu) || 22)),
+    odemeGunu: Math.min(31, Math.max(0, Number(d.odemeGunu) || 0)),
+  };
+  kaydet();
+};
+
+// Çalışma türü seçicisi
+document.getElementById("calisma-tur").innerHTML =
+  Object.entries(CALISMA_TURLERI).map(([k,t])=>`<option value="${k}">${t.ad}</option>`).join("");
+// Tür değişince birim kendiliğinden uygun olana geçsin — bir tık az.
+document.getElementById("calisma-tur").onchange = (e)=>{
+  const b = document.querySelector('#f-calisma select[name="birim"]');
+  b.value = CALISMA_TURLERI[e.target.value]?.birim || "gün";
+};
+
+document.getElementById("f-calisma").onsubmit = (e)=>{
+  e.preventDefault();
+  const f=e.target, d=Object.fromEntries(new FormData(f));
+  const miktar = paraOku(d.miktar);
+  if (!(miktar>0)) { alert("Geçerli bir miktar gir."); return; }
+  veri.calismalar.push({ id:yeniId(), tarih:d.tarih, tur:d.tur, miktar,
+    birim:d.birim, aciklama:(d.aciklama||"").trim() });
+  f.miktar.value=""; f.aciklama.value="";
+  kaydet(); f.miktar.focus();
+};
+
+document.getElementById("f-duzenli").onsubmit = (e)=>{
+  e.preventDefault();
+  const d=Object.fromEntries(new FormData(e.target));
+  veri.duzenli.push({ id:yeniId(), ad:d.ad.trim(), tur:d.tur, tutar:paraOku(d.tutar), gun:Number(d.gun) });
+  e.target.reset(); kaydet();
+};
+
+// Not — yazarken kaydeder
+let notZaman;
+document.getElementById("not-alani").oninput = (e)=>{
+  clearTimeout(notZaman);
+  const v=e.target.value;
+  notZaman=setTimeout(()=>{
+    if (v.trim()) veri.notlar[donem]=v; else delete veri.notlar[donem];
+    diskeYaz();
+    document.getElementById("rapor-metin").textContent = rapor();
+  },400);
+};
+
+// Satır düğmeleri
+document.body.addEventListener("click",(e)=>{
+  const oldu = e.target.closest("[data-oldu]");
+  if (oldu){ const h=veri.hareketler.find(x=>x.id===oldu.dataset.oldu); if(h){h.planli=false;kaydet();} return; }
+
+  const duz = e.target.closest("[data-duzenle]");
+  if (duz){ duzenlenen = duz.dataset.duzenle; ciz();
+    document.querySelector("tr.duzenleniyor input")?.focus(); return; }
+
+  if (e.target.closest("[data-vazgec]")){ duzenlenen=null; ciz(); return; }
+
+  const sil = e.target.closest("[data-sil]");
+  if (sil){
+    const h = veri.hareketler.find(x=>x.id===sil.dataset.sil);
+    if (h && confirm(`${tarihTR(h.tarih)} · ${TL(h.tutar)} · ${TURLER[h.tur]?.ad}\n\nSilinsin mi?`)){
+      veri.hareketler = veri.hareketler.filter(x=>x.id!==sil.dataset.sil);
+      duzenlenen=null; kaydet();
+    }
+    return;
+  }
+  const duzR = e.target.closest("[data-duzenle-duzenli]");
+  if (duzR){ duzenlenenDuzenli = duzR.dataset.duzenleDuzenli; ciz();
+    document.querySelector("#t-duzenli tr.duzenleniyor input")?.focus(); return; }
+  if (e.target.closest("[data-vazgec-duzenli]")){ duzenlenenDuzenli=null; ciz(); return; }
+
+  const duzC = e.target.closest("[data-duzenle-calisma]");
+  if (duzC){ duzenlenenCalisma = duzC.dataset.duzenleCalisma; ciz();
+    document.querySelector("#t-calisma tr.duzenleniyor input")?.focus(); return; }
+
+  if (e.target.closest("[data-vazgec-calisma]")){ duzenlenenCalisma=null; ciz(); return; }
+
+  const silC = e.target.closest(".sil-calisma");
+  if (silC){
+    const c = veri.calismalar.find(x=>x.id===silC.dataset.id);
+    const t = CALISMA_TURLERI[c?.tur]?.ad || "";
+    if (c && !confirm(`${tarihTR(c.tarih)} · ${paraOku(c.miktar)} ${c.birim} · ${t}\n\nSilinsin mi?`)) return;
+    veri.calismalar = veri.calismalar.filter(x=>x.id!==silC.dataset.id);
+    duzenlenenCalisma = null;
+    kaydet(); return;
+  }
+  const silD = e.target.closest(".sil-duzenli");
+  if (silD && confirm("Bu düzenli kayıt silinsin mi? Geçmiş dönemlere düşenler kalır.")){
+    veri.duzenli = veri.duzenli.filter(x=>x.id!==silD.dataset.id); kaydet();
+  }
+});
+
+// Düzenli kayıt düzenlemesi
+document.body.addEventListener("submit",(e)=>{
+  const f = e.target.closest("[data-kaydet-duzenli]");
+  if (!f) return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f));
+  const tutar = paraOku(d.tutar);
+  if (!(tutar>0)) { alert("Geçerli bir tutar gir."); return; }
+  const k = veri.duzenli.find(x=>x.id===f.dataset.kaydetDuzenli);
+  if (k) Object.assign(k, { ad:d.ad.trim(), tur:d.tur, tutar, gun:Number(d.gun) });
+  duzenlenenDuzenli = null;
+  kaydet();
+});
+
+// Çalışma düzenlemesi — SADECE burada yazılır
+document.body.addEventListener("submit",(e)=>{
+  const f = e.target.closest("[data-kaydet-calisma]");
+  if (!f) return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f));
+  const miktar = paraOku(d.miktar);
+  if (!(miktar>0)) { alert("Geçerli bir miktar gir."); return; }
+  const c = veri.calismalar.find(x=>x.id===f.dataset.kaydetCalisma);
+  if (c){
+    Object.assign(c, { tarih:d.tarih, tur:d.tur, miktar, birim:d.birim,
+      aciklama:(d.aciklama||"").trim() });
+    if ((d.not||"").trim()) c.not = d.not.trim(); else delete c.not;
+  }
+  duzenlenenCalisma = null;
+  const yeniAy = (d.tarih||"").slice(0,7);
+  if (yeniAy && yeniAy !== donem) donem = yeniAy;
+  kaydet();
+});
+
+// Hareket düzenlemesi — SADECE burada yazılır
+document.body.addEventListener("submit",(e)=>{
+  const f = e.target.closest("[data-kaydet]");
+  if (!f) return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f));
+  const tutar = paraOku(d.tutar);
+  if (!(tutar>0)) { alert("Geçerli bir tutar gir."); return; }
+  const h = veri.hareketler.find(x=>x.id===f.dataset.kaydet);
+  if (h){
+    Object.assign(h, { tarih:d.tarih, tur:d.tur, kisi:(d.kisi||"").trim(),
+      tutar, aciklama:(d.aciklama||"").trim(), planli:!!d.planli });
+    // Sonradan düşülen not — ör. "halledildi" gibi bir açıklama.
+    if ((d.not||"").trim()) h.not = d.not.trim(); else delete h.not;
+    if (["hakedis","maas","mahsup"].includes(d.tur) && d.maasAy) h.maasAy = d.maasAy;
+    else delete h.maasAy;
+  }
+
+  // Tarih başka aya taşındıysa kullanıcı kaydı kaybetmesin — o aya geç.
+  const yeniAy = (d.tarih||"").slice(0,7);
+  duzenlenen = null;
+  if (yeniAy && yeniAy !== donem){ donem = yeniAy; }
+  kaydet();
+});
+
+document.addEventListener("keydown",(e)=>{
+  if (e.key!=="Escape") return;
+  if (duzenlenen || duzenlenenCalisma || duzenlenenDuzenli){
+    duzenlenen=null; duzenlenenCalisma=null; duzenlenenDuzenli=null; ciz(); }
+});
+
+// Rapor / yedek
+document.getElementById("b-kopya").onclick = async (e)=>{
+  try{ await navigator.clipboard.writeText(rapor());
+    e.target.textContent="Kopyalandı ✓"; setTimeout(()=>e.target.textContent="Panoya kopyala",1600);
+  }catch(_){
+    const r=document.createRange(); r.selectNodeContents(document.getElementById("rapor-metin"));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+    alert("Kopyalanamadı; metin seçildi, Ctrl+C ile alabilirsin.");
+  }
+};
+/* ═══════════════════════════════════════════════════════════════
+   KLASÖRE BAĞLAMA — bilgisayarlar arası senkron, sunucusuz
+
+   Soru: "bilgisayarlar arasında nasıl taşınacak?" Veri localStorage'da olduğu
+   için her makinede ayrı duruyordu; elle yedek indir-yükle gerekiyordu.
+
+   Çözüm: tarayıcının klasör erişimi. Bir kez `finansdefterim/yedekler`
+   klasörünü seçiyorsun, defter oradaki `finans-defterim.json` dosyasını
+   kendi okuyup yazıyor. `git push` / `git pull` dosyayı öbür makineye
+   taşıyor; orada defter açılırken dosya daha yeniyse onu yüklüyor.
+
+   Veri hiçbir sunucuya gitmiyor — kendi diskinde ve kendi private
+   deposunda kalıyor.
+
+   ⚠️ İki sınır: (1) `https://` üzerinden açmak gerekiyor, yerel dosyada
+   tarayıcı bu izni vermiyor. (2) Chrome Android desteklemiyor, telefonda
+   çalışmaz — orada hâlâ elle yedek ya da Keep'e rapor.
+   ═══════════════════════════════════════════════════════════════ */
+
+const DOSYA_ADI = "finans-defterim.json";
+const KLASOR_DESTEGI = typeof window.showDirectoryPicker === "function";
+let klasor = null;          // FileSystemDirectoryHandle
+let yazmaZamani = null;     // arka arkaya yazmayı geciktirmek için
+
+/* Klasör tutamacı localStorage'a sığmaz (nesne), IndexedDB gerekiyor. */
+function idb(){
+  return new Promise((coz, red) => {
+    const istek = indexedDB.open("finans-defterim", 1);
+    istek.onupgradeneeded = () => istek.result.createObjectStore("kv");
+    istek.onsuccess = () => coz(istek.result);
+    istek.onerror = () => red(istek.error);
+  });
+}
+async function idbYaz(anahtar, deger){
+  const db = await idb();
+  return new Promise((coz,red)=>{
+    const t = db.transaction("kv","readwrite");
+    t.objectStore("kv").put(deger, anahtar);
+    t.oncomplete = coz; t.onerror = ()=>red(t.error);
+  });
+}
+async function idbOku(anahtar){
+  const db = await idb();
+  return new Promise((coz,red)=>{
+    const t = db.transaction("kv","readonly");
+    const r = t.objectStore("kv").get(anahtar);
+    r.onsuccess = ()=>coz(r.result); r.onerror = ()=>red(r.error);
+  });
+}
+
+async function izinVar(h, sor = false){
+  if (!h) return false;
+  const secenek = { mode: "readwrite" };
+  if ((await h.queryPermission(secenek)) === "granted") return true;
+  if (!sor) return false;
+  return (await h.requestPermission(secenek)) === "granted";
+}
+
+/** Defteri klasördeki dosyaya yazar. */
+async function dosyayaYaz(){
+  if (!klasor) return;
+  try {
+    if (!(await izinVar(klasor))) { klasorDurum(); return; }
+    const dosya = await klasor.getFileHandle(DOSYA_ADI, { create: true });
+    const yaz = await dosya.createWritable();
+    await yaz.write(JSON.stringify(veri, null, 2));
+    await yaz.close();
+    klasorDurum(`son yazma ${new Date().toLocaleTimeString("tr-TR")}`);
+  } catch(e){ console.warn("dosyaya yazılamadı", e); klasorDurum("yazılamadı: " + e.message); }
+}
+
+/** Yazmayı topluca yap — her tuşta diske gitmesin. */
+function dosyayaYazGecikmeli(){
+  if (DEMO || !klasor) return;
+  clearTimeout(yazmaZamani);
+  yazmaZamani = setTimeout(dosyayaYaz, 600);
+}
+
+/**
+ * Klasördeki dosyayı okur ve GEREKİYORSA yükler.
+ * Karar `guncelleme` damgasına göre: hangisi yeniyse o kazanır.
+ */
+async function dosyadanOku(sessiz = true){
+  if (!klasor || !(await izinVar(klasor))) return;
+  try {
+    const dosya = await klasor.getFileHandle(DOSYA_ADI);
+    const metin = await (await dosya.getFile()).text();
+    const gelen = duzelt(JSON.parse(metin));
+    const bizim = Number(veri.guncelleme || 0);
+    const onun  = Number(gelen.guncelleme || 0);
+    if (onun > bizim){
+      veri = gelen;
+      duzenlenen = duzenlenenCalisma = duzenlenenDuzenli = null;
+      ciz();
+      diskeYaz();
+      if (!sessiz) alert("Klasördeki daha yeni defter yüklendi.");
+      klasorDurum("klasördeki sürüm yüklendi");
+    } else if (bizim > onun){
+      await dosyayaYaz();      // buradaki daha yeni — dosyayı tazele
+    }
+  } catch(e){
+    // Dosya henüz yoksa ilk yazmayı yap.
+    if (e.name === "NotFoundError") await dosyayaYaz();
+    else console.warn("dosya okunamadı", e);
+  }
+}
+
+function klasorDurum(ek = ""){
+  const d = document.getElementById("klasor-durum");
+  const a = document.getElementById("klasor-aciklama");
+  const bagla = document.getElementById("b-klasor");
+  const kes = document.getElementById("b-klasor-kes");
+
+  if (DEMO){
+    d.innerHTML = `Demo modunda klasöre bağlama kapalı.`;
+    a.innerHTML = `Örnek defter yalnız bu tarayıcıda durur; hiçbir dosyaya yazılmaz.`;
+    bagla.classList.add("gizli"); kes.classList.add("gizli");
+    return;
+  }
+  if (!KLASOR_DESTEGI){
+    d.innerHTML = `<span class="uyari">Klasöre bağlama bu ortamda çalışmıyor.</span>`;
+    a.innerHTML = `Dosyaya çift tıklayarak açtıysan tarayıcı bu izni vermiyor —
+      yerel bir sunucu üzerinden aç (ör. <code>python -m http.server</code> → <code>http://localhost:8000/DEFTER.html</code>).
+      Telefonda ise Chrome bu özelliği hiç desteklemiyor.`;
+    bagla.classList.add("gizli"); kes.classList.add("gizli");
+    return;
+  }
+  if (klasor){
+    d.innerHTML = `<span class="iyi">✓ Klasöre bağlı:</span> <strong>${kacir(klasor.name)}</strong>`
+      + (ek ? ` <span class="alt">— ${kacir(ek)}</span>` : "");
+    a.innerHTML = `Her değişiklik <code>${DOSYA_ADI}</code> dosyasına kendiliğinden yazılıyor.
+      <strong>git push</strong> yapıp öbür makinede <strong>git pull</strong> dersen defter oraya geçer.`;
+    bagla.textContent = "Başka klasör seç";
+    kes.classList.remove("gizli");
+  } else {
+    d.innerHTML = `Klasöre bağlı değil — kayıtlar yalnız bu tarayıcıda.`;
+    a.innerHTML = `<strong>finansdefterim/yedekler</strong> klasörünü seçersen defter oraya
+      kendiliğinden yazar; git ile öbür bilgisayara taşınır.`;
+    bagla.textContent = "Klasöre bağla";
+    kes.classList.add("gizli");
+  }
+}
+
+async function klasoreBagla(){
+  if (DEMO) return;
+  try {
+    klasor = await window.showDirectoryPicker({ mode: "readwrite", id: "finansdefterim" });
+    await idbYaz("klasor", klasor);
+    klasorDurum();
+    await dosyadanOku(false);
+    await dosyayaYaz();
+  } catch(e){ if (e.name !== "AbortError") alert("Klasör seçilemedi: " + e.message); }
+}
+
+async function klasoruGeriYukle(){
+  if (DEMO || !KLASOR_DESTEGI){ klasorDurum(); return; }
+  try {
+    const h = await idbOku("klasor");
+    if (!h){ klasorDurum(); return; }
+    if (await izinVar(h)){ klasor = h; klasorDurum(); await dosyadanOku(); }
+    else {
+      // Tarayıcı yeniden başlayınca izin düşüyor; kullanıcı hareketi şart.
+      klasor = null; klasorDurum();
+      document.getElementById("klasor-durum").innerHTML =
+        `<span class="uyari">Klasör bağlantısı izin bekliyor</span>`;
+      document.getElementById("b-klasor").textContent = "İzni yenile";
+      document.getElementById("b-klasor").onclick = async ()=>{
+        if (await izinVar(h, true)){ klasor = h; klasorDurum(); await dosyadanOku(); 
+          document.getElementById("b-klasor").onclick = klasoreBagla; }
+      };
+    }
+  } catch(e){ console.warn(e); klasorDurum(); }
+}
+
+/* ── Yedek hatırlatması ───────────────────────────────────────
+   localStorage tek nokta: tarayıcı verisi silinirse defter gider.
+   Yedek almak unutulmasın diye kaç gün geçtiğini takip ediyoruz.
+   Uyarı kapatılabilir ama ertesi gün yine çıkar — ısrarcı ama rahatsız değil. */
+const YEDEK_ANAHTAR = ANAHTAR + "-son-yedek";
+const ERTELE_ANAHTAR = ANAHTAR + "-yedek-ertele";
+const GUN = 86400000;
+
+function yedekAlindi(){
+  try { localStorage.setItem(YEDEK_ANAHTAR, String(Date.now())); localStorage.removeItem(ERTELE_ANAHTAR); } catch(_){}
+  yedekUyarisi();
+}
+
+function yedekUyarisi(){
+  const el = document.getElementById("yedek-uyari");
+  // Boş defterde ve demoda uyarma — yedeklenecek bir şey yok.
+  if (DEMO){ el.classList.add("gizli"); return; }
+  if (!veri.hareketler.length && !(veri.calismalar||[]).length){ el.classList.add("gizli"); return; }
+
+  const son = Number(localStorage.getItem(YEDEK_ANAHTAR) || 0);
+  const ertele = Number(localStorage.getItem(ERTELE_ANAHTAR) || 0);
+  if (Date.now() - ertele < GUN){ el.classList.add("gizli"); return; }
+
+  const gunSayisi = son ? Math.floor((Date.now() - son) / GUN) : null;
+  if (gunSayisi !== null && gunSayisi < 7){ el.classList.add("gizli"); return; }
+
+  el.classList.remove("gizli");
+  document.getElementById("yedek-uyari-metin").innerHTML = son
+    ? `Son yedeğini <strong>${gunSayisi} gün önce</strong> aldın. Kayıtlar yalnız bu tarayıcıda —
+       verisi silinirse geri dönüşü yok.`
+    : `<strong>Henüz hiç yedek almadın.</strong> Kayıtlar yalnız bu tarayıcının hafızasında;
+       tarayıcı verisi silinirse defter gider.`;
+}
+
+document.getElementById("b-yedek-sonra").onclick = ()=>{
+  try { localStorage.setItem(ERTELE_ANAHTAR, String(Date.now())); } catch(_){}
+  document.getElementById("yedek-uyari").classList.add("gizli");
+};
+document.getElementById("b-yedek-hizli").onclick = ()=> document.getElementById("b-yedek").click();
+
+document.getElementById("b-yedek").onclick = ()=>{
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(veri,null,2)],{type:"application/json"}));
+  a.download=`finans-defterim-${bugun()}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+document.getElementById("b-yukle").onclick = ()=>document.getElementById("dosya").click();
+document.getElementById("dosya").onchange = async (e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const eski=veri;
+  try{
+    veri = duzelt(JSON.parse(await f.text()));
+    duzenlenen=null;
+    ciz();          // ÖNCE çiz — patlarsa diske hiç yazılmadı
+    diskeYaz();
+    yedekAlindi();  // yüklenen yedek taze sayılır
+    alert("Yedek yüklendi.");
+  }catch(err){ veri=eski; ciz(); alert("Yüklenemedi: "+err.message+"\nMevcut defterin duruyor."); }
+  e.target.value="";
+};
+
+// Başlangıç
+if (DEMO){
+  document.title = "Finans Defterim · Demo";
+  document.getElementById("demo-bant").classList.remove("gizli");
+  document.getElementById("b-demo-sifirla").onclick = ()=>{
+    try { localStorage.removeItem(ANAHTAR); localStorage.removeItem(ANAHTAR+"-kapali"); } catch(_){}
+    location.reload();
+  };
+}
+kisiGorunur();
+ciz();
+bolumleriKur();
+document.getElementById("b-klasor").onclick = klasoreBagla;
+document.getElementById("b-klasor-kes").onclick = async ()=>{
+  if (DEMO) return;   // gerçek defterin klasör bağlantısı silinmesin
+  klasor = null; await idbYaz("klasor", null); klasorDurum();
+};
+klasoruGeriYukle();
+// Sekme geri odağa gelince klasördeki daha yeni sürümü al (git pull sonrası).
+window.addEventListener("focus", ()=>{ if (klasor) dosyadanOku(); });
+</script>

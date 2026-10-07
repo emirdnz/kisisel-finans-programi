@@ -1,0 +1,8 @@
+# Kişisel veri asla depoya girmez — defter yedekleri (finans-defterim-*.json) ve klasör senkron dosyası
+*.json
+yedekler/
+
+# Geçici dosyalar
+*.tmp
+.DS_Store
+Thumbs.db
